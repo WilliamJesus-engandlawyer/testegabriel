@@ -1,15 +1,12 @@
 # ============================================================
-# main.py — RAG Tributário no Streamlit (versão para Streamlit Cloud)
+# Assistente Tributário – Dr. Gabriel (RAG + Gemini)
+# Versão otimizada para Streamlit Cloud
 # ============================================================
 
 import streamlit as st
 import lancedb
 from sentence_transformers import SentenceTransformer
-from datetime import datetime
 import google.generativeai as genai
-import os
-
-
 
 
 # ---------------------- CONFIGURAÇÃO ----------------------
@@ -19,100 +16,133 @@ st.set_page_config(
     layout="centered"
 )
 
-# Configura a API do Gemini 
+# Configura Gemini
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# ---------------------- TÍTULO ----------------------
+# ---------------------- CABEÇALHO ----------------------
 st.title("⚖️ Dr. Gabriel")
-st.markdown(
-    "**Procurador Municipal • OAB/SP**  \n"
-    "Consultas tributárias sobre IPTU, ISS, ITBI e leis municipais de Itaquaquecetuba."
-)
+st.write("**Procurador Municipal • OAB/SP**")
+st.caption("Consultas tributárias sobre IPTU, ISS, ITBI e legislação municipal de Itaquaquecetuba.")
 
-# ---------------------- CARREGAR RAG ----------------------
+# ---------------------- CARREGAMENTO DO RAG ----------------------
 @st.cache_resource
 def load_rag():
-    st.info("Carregando base de leis e modelo de embeddings...")
+    st.info("Carregando base jurídica e modelo de embeddings...")
 
-    db = lancedb.connect("./lancedb")
-    tbl = db.open_table("laws")
-    model_emb = SentenceTransformer(
-        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    # 1) Conecta ao LanceDB
+    try:
+        db = lancedb.connect("./lancedb")
+        st.success("✓ LanceDB conectado")
+    except Exception as e:
+        st.error(f"❌ Erro ao conectar ao LanceDB: {e}")
+        return None, None
 
-    return tbl, model_emb
+    # 2) Abre tabela
+    try:
+        tbl = db.open_table("laws")
+        st.success("✓ Tabela 'laws' carregada")
+    except Exception as e:
+        st.error(f"❌ Erro ao abrir tabela 'laws': {e}")
+        return None, None
+
+    # 3) Carrega modelo de embeddings
+    try:
+        emb = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+        st.success("✓ Modelo de embeddings carregado")
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar modelo de embeddings: {e}")
+        return None, None
+
+    return tbl, emb
 
 
-# Inicializa
-tbl, model_emb = load_rag()
+# Inicializa RAG
+tbl, emb_model = load_rag()
 
 
-# ---------------------- FUNÇÃO DE BUSCA ----------------------
+# ---------------------- BUSCA RAG INTELIGENTE ----------------------
 def busca_rag(pergunta, top_k=6):
-    query_vec = model_emb.encode(
-        pergunta, normalize_embeddings=True
-    ).astype("float32")
+    """Executa busca semântica com filtros e keyword-boost automático."""
 
-    where_clauses = ["vigente = true", "hierarquia <= 3"]
+    # Vetor da pergunta
+    query_vec = emb_model.encode(pergunta, normalize_embeddings=True).astype("float32")
+
+    p = pergunta.lower()
     keyword_boost = []
-    p_lower = pergunta.lower()
 
+    # Boost para temas frequentes
+    if any(x in p for x in ["isenção", "isencao", "imunidade"]):
+        keyword_boost.append("text LIKE '%isen%' OR text LIKE '%imunid%'")
+
+    if any(x in p for x in ["aposentado", "pensionista", "idoso"]):
+        keyword_boost.append("text LIKE '%aposent%' OR text LIKE '%pension%' OR text LIKE '%idos%'")
+
+    if "alíquota" in p or "aliquota" in p:
+        keyword_boost.append("text LIKE '%aliquot%'")
+
+    if "parcelamento" in p:
+        keyword_boost.append("text LIKE '%parcel%'")
+
+    # Busca semântica
     search = tbl.search(query_vec).metric("cosine").limit(top_k * 5)
-    search = search.where(" AND ".join(where_clauses))
 
+    # Filtros básicos
+    search = search.where("vigente = true AND hierarquia <= 3")
+
+    # Keyword boost (prefilter rápido)
     if keyword_boost:
         search = search.where(" OR ".join(keyword_boost), prefilter=True)
 
     return search.to_list()[:top_k]
 
 
-
-# ---------------------- CHAT ----------------------
+# ---------------------- CHATBOT ----------------------
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant",
-         "content": "Em que posso ajudar com tributos municipais hoje?"}
+         "content": "Olá! Sou o Dr. Gabriel. Em que posso ajudar com tributos municipais hoje?"}
     ]
 
-# Exibe histórico
+# Render histórico
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 # Entrada do usuário
-if prompt := st.chat_input("Ex: Aposentado tem isenção de IPTU?"):
+if prompt := st.chat_input("Digite sua dúvida tributária aqui..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").write(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Consultando a legislação municipal..."):
-            
-            # 1. Busca no RAG
-            docs = busca_rag(prompt, top_k=6)
+        with st.spinner("Consultando legislação municipal..."):
 
+            docs = busca_rag(prompt)
+
+            # Monta o contexto jurídico
             contexto = "\n\n".join([
-                f"FONTE: {d['norma']} {d.get('numero','')}/{d.get('ano','')} — {d.get('source_file','')}\n{d['text'][:1500]}"
+                f"FONTE: {d['norma']} {d.get('numero','')}/{d.get('ano','')} — {d.get('source_file','')}\n"
+                f"{d['text'][:1200]}"
                 for d in docs
             ])
 
-            # 2. Monta prompt jurídico
-            mensagem = f"""
-Você é o Dr. Gabriel, procurador municipal especializado em tributação local.
+            prompt_llm = f"""
+Você é o Dr. Gabriel, procurador municipal especializado em tributação.
 
-Use APENAS as leis fornecidas no bloco "LEIS".  
-Não invente artigos, números ou normas.
+Responda APENAS com base no bloco "LEIS".
+Nunca invente artigos ou números que não estejam no contexto.
 
-PERGUNTA DO USUÁRIO:
+PERGUNTA:
 {prompt}
 
-LEIS ENCONTRADAS:
+LEIS:
 {contexto}
 
-Responda com precisão jurídica, começando com "Prezado(a) Cliente,".
+Escreva uma resposta formal e jurídica, iniciando com:
+"Prezado(a) Cliente,"
 """
 
-            # 3. Gera resposta com Gemini
-            resposta = model.generate_content(mensagem)
+            # Gera resposta
+            resposta = model.generate_content(prompt_llm)
             texto = resposta.text
 
             st.write(texto)
@@ -121,12 +151,13 @@ Responda com precisão jurídica, começando com "Prezado(a) Cliente,".
                 {"role": "assistant", "content": texto}
             )
 
+
 # ---------------------- SIDEBAR ----------------------
 with st.sidebar:
-    st.header("ℹ️ Sobre este assistente")
+    st.header("ℹ️ Sobre o Assistente")
     st.write("""
-    • Baseado em leis municipais vigentes  
-    • IA Gemini + RAG (LanceDB)  
-    • Consultas sobre IPTU, ISS, ITBI, isenções e parcelamentos  
+    • IA com base em leis municipais  
+    • RAG usando LanceDB  
+    • Consultas sobre IPTU, ITBI, ISS, isenções e parcelamentos  
     """)
-    st.caption("Criado em Dez/2025")
+    st.caption("Criado em Dezembro/2025")
