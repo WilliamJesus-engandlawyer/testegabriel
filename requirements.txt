@@ -1,7 +1,6 @@
 streamlit
 lancedb
-groq
+pyarrow
 sentence-transformers
-pypdf
+groq
 numpy
-pandas
