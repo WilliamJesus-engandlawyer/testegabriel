@@ -1,8 +1,7 @@
 streamlit
 lancedb
+groq
 sentence-transformers
-google-generativeai==0.7.2
+pypdf
 numpy
 pandas
-pyarrow
-tqdm
