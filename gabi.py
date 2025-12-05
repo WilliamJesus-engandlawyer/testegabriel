@@ -1,163 +1,82 @@
-# ============================================================
-# Assistente Tributário – Dr. Gabriel (RAG + Gemini)
-# Versão otimizada para Streamlit Cloud
-# ============================================================
-
 import streamlit as st
 import lancedb
+import pandas as pd
+from pypdf import PdfReader
+from groq import Groq
 from sentence_transformers import SentenceTransformer
-import google.generativeai as genai
 
+# --- Config ---
+st.set_page_config("RAG Groq")
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# ---------------------- CONFIGURAÇÃO ----------------------
-st.set_page_config(
-    page_title="Dr. Gabriel – Assistente Tributário",
-    page_icon="⚖️",
-    layout="centered"
+# --- Embeddings (locais, rápidos e estáveis) ---
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+
+def embed(text):
+    return embedder.encode(text).tolist()
+
+# --- Conectar LanceDB ---
+db = lancedb.connect("db")
+table = db.create_table(
+    "docs",
+    schema={"texto": str, "embedding": list},
+    mode="create",  # cria uma vez; ajuste para "append" se quiser reusar
 )
 
-# Configura Gemini
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-1.5-flash")
+# --- Função para ler PDFs ---
+def extract_text_from_pdf(uploaded_file):
+    reader = PdfReader(uploaded_file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    return text
 
-# ---------------------- CABEÇALHO ----------------------
-st.title("⚖️ Dr. Gabriel")
-st.write("**Procurador Municipal • OAB/SP**")
-st.caption("Consultas tributárias sobre IPTU, ISS, ITBI e legislação municipal de Itaquaquecetuba.")
+# --- Indexação ---
+st.header("📄 Indexar PDF")
+uploaded_file = st.file_uploader("Envie um PDF", type=["pdf"])
 
-# ---------------------- CARREGAMENTO DO RAG ----------------------
-@st.cache_resource
-def load_rag():
-    st.info("Carregando base jurídica e modelo de embeddings...")
+if uploaded_file and st.button("Indexar"):
+    text = extract_text_from_pdf(uploaded_file)
+    chunks = text.split("\n\n")  # chunking simples
 
-    # 1) Conecta ao LanceDB
-    try:
-        db = lancedb.connect("./lancedb")
-        st.success("✓ LanceDB conectado")
-    except Exception as e:
-        st.error(f"❌ Erro ao conectar ao LanceDB: {e}")
-        return None, None
+    rows = []
+    for chunk in chunks:
+        if chunk.strip():
+            rows.append({
+                "texto": chunk,
+                "embedding": embed(chunk)
+            })
 
-    # 2) Abre tabela
-    try:
-        tbl = db.open_table("laws")
-        st.success("✓ Tabela 'laws' carregada")
-    except Exception as e:
-        st.error(f"❌ Erro ao abrir tabela 'laws': {e}")
-        return None, None
+    table.add(rows)
+    st.success(f"{len(rows)} trechos indexados!")
 
-    # 3) Carrega modelo de embeddings
-    try:
-        emb = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-        st.success("✓ Modelo de embeddings carregado")
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar modelo de embeddings: {e}")
-        return None, None
+# --- Perguntas ---
+st.header("💬 Fazer Pergunta ao RAG")
 
-    return tbl, emb
+query = st.text_input("Sua pergunta:")
 
+if query:
+    q_emb = embed(query)
 
-# Inicializa RAG
-tbl, emb_model = load_rag()
+    results = table.search(q_emb).limit(5).to_pandas()
 
+    if len(results) == 0:
+        st.warning("Nenhum documento encontrado.")
+    else:
+        context = "\n".join(results["texto"].tolist())
 
-# ---------------------- BUSCA RAG INTELIGENTE ----------------------
-def busca_rag(pergunta, top_k=6):
-    """Executa busca semântica com filtros e keyword-boost automático."""
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {"role": "system", "content": "Você é um assistente jurídico."},
+                {"role": "user", "content": f"Contexto:\n{context}\n\nPergunta: {query}"}
+            ]
+        )
 
-    # Vetor da pergunta
-    query_vec = emb_model.encode(pergunta, normalize_embeddings=True).astype("float32")
+        answer = response.choices[0].message["content"]
 
-    p = pergunta.lower()
-    keyword_boost = []
+        st.subheader("Resposta:")
+        st.write(answer)
 
-    # Boost para temas frequentes
-    if any(x in p for x in ["isenção", "isencao", "imunidade"]):
-        keyword_boost.append("text LIKE '%isen%' OR text LIKE '%imunid%'")
-
-    if any(x in p for x in ["aposentado", "pensionista", "idoso"]):
-        keyword_boost.append("text LIKE '%aposent%' OR text LIKE '%pension%' OR text LIKE '%idos%'")
-
-    if "alíquota" in p or "aliquota" in p:
-        keyword_boost.append("text LIKE '%aliquot%'")
-
-    if "parcelamento" in p:
-        keyword_boost.append("text LIKE '%parcel%'")
-
-    # Busca semântica
-    search = tbl.search(query_vec).metric("cosine").limit(top_k * 5)
-
-    # Filtros básicos
-    search = search.where("vigente = true AND hierarquia <= 3")
-
-    # Keyword boost (prefilter rápido)
-    if keyword_boost:
-        search = search.where(" OR ".join(keyword_boost), prefilter=True)
-
-    return search.to_list()[:top_k]
-
-
-# ---------------------- CHATBOT ----------------------
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant",
-         "content": "Olá! Sou o Dr. Gabriel. Em que posso ajudar com tributos municipais hoje?"}
-    ]
-
-# Render histórico
-for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
-
-# Entrada do usuário
-if prompt := st.chat_input("Digite sua dúvida tributária aqui..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Consultando legislação municipal..."):
-
-            docs = busca_rag(prompt)
-
-            # Monta o contexto jurídico
-            contexto = "\n\n".join([
-                f"FONTE: {d['norma']} {d.get('numero','')}/{d.get('ano','')} — {d.get('source_file','')}\n"
-                f"{d['text'][:1200]}"
-                for d in docs
-            ])
-
-            prompt_llm = f"""
-Você é o Dr. Gabriel, procurador municipal especializado em tributação.
-
-Responda APENAS com base no bloco "LEIS".
-Nunca invente artigos ou números que não estejam no contexto.
-
-PERGUNTA:
-{prompt}
-
-LEIS:
-{contexto}
-
-Escreva uma resposta formal e jurídica, iniciando com:
-"Prezado(a) Cliente,"
-"""
-
-            # Gera resposta
-            resposta = model.generate_content(prompt_llm)
-            texto = resposta.text
-
-            st.write(texto)
-
-            st.session_state.messages.append(
-                {"role": "assistant", "content": texto}
-            )
-
-
-# ---------------------- SIDEBAR ----------------------
-with st.sidebar:
-    st.header("ℹ️ Sobre o Assistente")
-    st.write("""
-    • IA com base em leis municipais  
-    • RAG usando LanceDB  
-    • Consultas sobre IPTU, ITBI, ISS, isenções e parcelamentos  
-    """)
-    st.caption("Criado em Dezembro/2025")
+        with st.expander("🔎 Contexto usado"):
+            st.write(context)
