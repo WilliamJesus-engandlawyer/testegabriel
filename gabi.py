@@ -9,6 +9,9 @@ from datetime import datetime
 import google.generativeai as genai
 import os
 
+
+
+
 # ---------------------- CONFIGURAÇÃO ----------------------
 st.set_page_config(
     page_title="Dr. Gabriel – Assistente Tributário",
@@ -17,7 +20,7 @@ st.set_page_config(
 )
 
 # Configura a API do Gemini 
-genai.configure(st.secrets["GEMINI_API_KEY"])
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 # ---------------------- TÍTULO ----------------------
