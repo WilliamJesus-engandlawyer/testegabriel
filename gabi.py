@@ -1,162 +1,131 @@
 # ============================================================
-# Dr. Gabriel — Assistente Tributário com RAG + Groq
-# Versão compatível com Streamlit Cloud
+# main.py — RAG Tributário com LanceDB + GROQ (Streamlit Cloud)
 # ============================================================
 
 import streamlit as st
 import lancedb
 import pyarrow as pa
-from sentence_transformers import SentenceTransformer
 from groq import Groq
-import numpy as np
+from sentence_transformers import SentenceTransformer
 
-
-# ---------------------- CONFIG ----------------------
+# ------------------------------------------------------------
+# CONFIGURAÇÃO
+# ------------------------------------------------------------
 st.set_page_config(
     page_title="Dr. Gabriel – Assistente Tributário",
     page_icon="⚖️",
     layout="centered"
 )
 
-# Groq (configure no deploy: Secrets → GROQ_API_KEY)
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-
-# ---------------------- CARREGAR LANCEDB + EMBEDDINGS ----------------------
+# ------------------------------------------------------------
+# INICIALIZAÇÃO DO LANCEDB + EMBEDDINGS
+# ------------------------------------------------------------
 @st.cache_resource
-def load_rag():
-
-    st.info("Carregando base legal e modelo de embeddings...")
-
-    # Conecta ao LanceDB (cria pasta db/)
+def init_rag():
+    # Conecta ao banco
     db = lancedb.connect("db")
 
-    # Schema compatível com pyarrow/streamlit cloud
+    # Schema correto
     schema = pa.schema([
         ("texto", pa.string()),
         ("embedding", pa.list_(pa.float32()))
     ])
 
-    # Cria tabela, ou abre caso já exista
+    # Cria tabela se não existir
     try:
-        table = db.create_table(
-            "docs",
-            schema=schema,
-            mode="create"
-        )
+        table = db.create_table("docs", schema=schema, mode="create")
     except:
         table = db.open_table("docs")
 
     # Carrega modelo de embeddings
-    emb = SentenceTransformer(
+    emb_model = SentenceTransformer(
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
 
-    return table, emb
+    # Se a tabela estiver VAZIA, faz autopopulação
+    if table.count_rows() == 0:
+        st.warning("Base vazia — populando tabela automaticamente...")
+
+        textos_iniciais = [
+            "O contribuinte aposentado pode ter isenção de IPTU conforme legislação municipal vigente.",
+            "O IPTU é calculado com base no valor venal do imóvel determinado pela Prefeitura.",
+            "O ISS incide sobre a prestação de serviços e segue regras do Código Tributário Municipal."
+        ]
+
+        for txt in textos_iniciais:
+            vec = emb_model.encode(txt).astype("float32")
+            table.add({"texto": txt, "embedding": vec.tolist()})
+
+        st.success("Base populada com dados iniciais!")
+
+    return table, emb_model
 
 
-table, emb_model = load_rag()
+table, emb_model = init_rag()
 
-
-# ---------------------- Função de BUSCA RAG ----------------------
-def busca_rag(query, k=5):
-
-    vec = emb_model.encode(query).astype("float32")
-
-    # Busca vetorial
+# ------------------------------------------------------------
+# FUNÇÃO DE BUSCA RAG
+# ------------------------------------------------------------
+def busca_rag(pergunta, k=5):
+    vec = emb_model.encode(pergunta).astype("float32")
     result = table.search(vec).metric("cosine").limit(k).to_list()
-
     return result
 
 
-# ---------------------- Função LLM (Groq) ----------------------
-def gerar_resposta(pergunta, leis):
-
-    prompt = f"""
-Você é o Dr. Gabriel, procurador municipal especialista em direito tributário local.
-
-Use APENAS as leis fornecidas abaixo.  
-Não invente artigos, não crie leis, não mencione normas inexistentes.
-
-PERGUNTA:
-{pergunta}
-
-LEIS ENCONTRADAS:
-{leis}
-
-Responda como um procurador municipal, começando com:
-"Prezado(a) munícipe,"
-
-"""
-
-    completion = client.chat.completions.create(
-        model="mixtral-8x7b-32768",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.2
-    )
-
-    return completion.choices[0].message.content
-
-
-# ---------------------- INTERFACE ----------------------
+# ------------------------------------------------------------
+# CHAT UI
+# ------------------------------------------------------------
 st.title("⚖️ Dr. Gabriel")
-st.markdown(
-    "Assistente Tributário especializado em **IPTU, ISS, ITBI**, "
-    "legislação municipal e normas vigentes."
-)
+st.write("Assistente Tributário Municipal (IPTU, ISS, ITBI) com RAG")
 
-
-# ---------------------- HISTÓRICO ----------------------
 if "chat" not in st.session_state:
     st.session_state.chat = [
-        {"role": "assistant",
-         "content": "Prezado(a) munícipe, em que posso ajudar hoje?"}
+        {"role": "assistant", "content": "Em que posso ajudar hoje?"}
     ]
-
 
 # Exibe histórico
 for msg in st.session_state.chat:
     st.chat_message(msg["role"]).write(msg["content"])
 
-
-# ---------------------- INPUT DO USUÁRIO ----------------------
-pergunta = st.chat_input("Exemplo: aposentado tem isenção de IPTU?")
-
-if pergunta:
-
+# Entrada
+if pergunta := st.chat_input("Digite sua pergunta tributária..."):
     st.session_state.chat.append({"role": "user", "content": pergunta})
     st.chat_message("user").write(pergunta)
 
     with st.chat_message("assistant"):
-        with st.spinner("Consultando legislação municipal..."):
+        with st.spinner("Consultando base de leis..."):
 
-            # 1. Busca RAG
+            # 1. Busca no RAG
             docs = busca_rag(pergunta, k=5)
 
-            leis_texto = "\n\n".join(
-                f"- {d['texto'][:1400]}"
-                for d in docs
+            contexto = "\n\n".join([d["texto"] for d in docs])
+
+            # 2. Prompt final
+            prompt_llm = f"""
+Você é o Dr. Gabriel, procurador municipal especialista em IPTU, ISS e ITBI.
+
+Use APENAS as informações do bloco "LEIS".
+
+PERGUNTA: {pergunta}
+
+LEIS:
+{contexto}
+
+Responda com precisão jurídica, tom profissional e sem inventar leis inexistentes.
+"""
+
+            # 3. Gera resposta com GROQ
+            resp = groq_client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[{"role": "user", "content": prompt_llm}]
             )
 
-            # 2. Resposta do Groq
-            resposta = gerar_resposta(pergunta, leis_texto)
+            resposta_final = resp.choices[0].message["content"]
 
-            st.write(resposta)
+            st.write(resposta_final)
 
             st.session_state.chat.append(
-                {"role": "assistant", "content": resposta}
+                {"role": "assistant", "content": resposta_final}
             )
-
-
-# ---------------------- SIDEBAR ----------------------
-with st.sidebar:
-    st.header("ℹ️ Sobre o projeto")
-    st.markdown("""
-    • RAG com **LanceDB + Sentence Transformers**  
-    • LLM **Groq (Mixtral-8x7b)**  
-    • Consultas reais sobre legislação municipal  
-    • Ideal para Procuradorias, Prefeituras e atendimentos ao público  
-    """)
-    st.caption("Criado por William — Dez/2025")
