@@ -35,18 +35,27 @@ st.markdown(
 def load_rag():
     st.info("Carregando base de leis e modelo de embeddings...")
 
-    # Conecta no LanceDB na pasta local do repositório
-    db = lancedb.connect("./lancedb")
-    tbl = db.open_table("laws")
+    try:
+        db = lancedb.connect("./lancedb")
+        st.write("LanceDB conectado.")
+    except Exception as e:
+        st.error(f"ERRO ao conectar LanceDB: {e}")
 
-    # Carrega modelo para embeddings
-    model_emb = SentenceTransformer(
-        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    try:
+        tbl = db.open_table("laws")
+        st.write("Tabela carregada.")
+    except Exception as e:
+        st.error(f"ERRO ao abrir tabela: {e}")
+
+    try:
+        model_emb = SentenceTransformer(
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
+        st.write("Modelo de embeddings carregado.")
+    except Exception as e:
+        st.error(f"ERRO ao carregar modelo de embeddings: {e}")
 
     return tbl, model_emb
-
-tbl, dense_model = load_rag()
 
 # ---------------------- FUNÇÃO DE BUSCA ----------------------
 def busca_rag(pergunta, top_k=6):
