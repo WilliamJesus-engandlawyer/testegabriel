@@ -35,31 +35,22 @@ st.markdown(
 def load_rag():
     st.info("Carregando base de leis e modelo de embeddings...")
 
-    try:
-        db = lancedb.connect("./lancedb")
-        st.write("LanceDB conectado.")
-    except Exception as e:
-        st.error(f"ERRO ao conectar LanceDB: {e}")
-
-    try:
-        tbl = db.open_table("laws")
-        st.write("Tabela carregada.")
-    except Exception as e:
-        st.error(f"ERRO ao abrir tabela: {e}")
-
-    try:
-        model_emb = SentenceTransformer(
-            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-        )
-        st.write("Modelo de embeddings carregado.")
-    except Exception as e:
-        st.error(f"ERRO ao carregar modelo de embeddings: {e}")
+    db = lancedb.connect("./lancedb")
+    tbl = db.open_table("laws")
+    model_emb = SentenceTransformer(
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
 
     return tbl, model_emb
 
+
+# Inicializa
+tbl, model_emb = load_rag()
+
+
 # ---------------------- FUNÇÃO DE BUSCA ----------------------
 def busca_rag(pergunta, top_k=6):
-    query_vec = dense_model.encode(
+    query_vec = model_emb.encode(
         pergunta, normalize_embeddings=True
     ).astype("float32")
 
@@ -67,24 +58,14 @@ def busca_rag(pergunta, top_k=6):
     keyword_boost = []
     p_lower = pergunta.lower()
 
-    # Detecta termos relevantes
-    if any(x in p_lower for x in ["aposentado", "pensionista", "idoso"]):
-        keyword_boost.append(
-            "text LIKE '%aposentado%' OR text LIKE '%pensionista%' OR text LIKE '%idoso%'"
-        )
-    if "isenção" in p_lower or "imunidade" in p_lower:
-        keyword_boost.append("text LIKE '%isenção%' OR text LIKE '%imunidade%'")
-    if "alíquota" in p_lower:
-        keyword_boost.append("text LIKE '%alíquota%'")
-    if "parcelamento" in p_lower:
-        keyword_boost.append("text LIKE '%parcelamento%'")
-
     search = tbl.search(query_vec).metric("cosine").limit(top_k * 5)
     search = search.where(" AND ".join(where_clauses))
+
     if keyword_boost:
         search = search.where(" OR ".join(keyword_boost), prefilter=True)
 
     return search.to_list()[:top_k]
+
 
 
 # ---------------------- CHAT ----------------------
