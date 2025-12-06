@@ -166,7 +166,7 @@ def build_groq_prompt(question: str, docs: List[Dict[str, Any]]) -> str:
 # -------------------------
 # UI Streamlit
 # -------------------------
-st.title("⚖️ Dr. Gabriel — Assistente Tributário (RAG)")
+st.title("⚖️ Dr. Gabriel Bazzeggio — Assistente Tributário (RAG)")
 st.subheader("Feito por Will — cosplayer, bacharel em Direito e engenheiro da computação")
 st.caption("Base oficial: `./lancedb` (tabela 'laws'). Usando embeddings pré-gerados.")
 
