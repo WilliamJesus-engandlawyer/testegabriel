@@ -210,7 +210,7 @@ if prompt:
                     try:
                         # usa a API de chat/completions do Groq
                         resp = groq_client.chat.completions.create(
-                            model="llama3-70b-8192",
+                          model="meta-llama/llama-3.3-70b-instruct",
                             messages=[{"role": "user", "content": prompt_for_model}],
                             temperature=0.0
                         )
@@ -242,5 +242,5 @@ if prompt:
 
 # rodapé com info técnica
 st.markdown("---")
-st.caption("Dr. Gabriel • RAG baseada no LanceDB exportado do seu pipeline. Se precisar, me peça para ajustar o rank/retrieval ou o prompt.")
+st.caption("Dr. Gabriel • RAG baseada no LanceDB exportado da minha pipeline.")
 
