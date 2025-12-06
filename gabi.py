@@ -30,7 +30,7 @@ def init_rag():
     # Schema correto
     schema = pa.schema([
         ("texto", pa.string()),
-        ("embedding", pa.list_(pa.float32()))
+        pa.field("embedding", pa.fixed_size_list(pa.float32(), 384))  # Corrigi pra fixed_size_list (tamanho do modelo: 384 dims)
     ])
 
     # Cria tabela se não existir
@@ -54,9 +54,13 @@ def init_rag():
             "O ISS incide sobre a prestação de serviços e segue regras do Código Tributário Municipal."
         ]
 
+        # Coleta tudo numa lista e adiciona de uma vez (fix pro erro)
+        data = []
         for txt in textos_iniciais:
             vec = emb_model.encode(txt).astype("float32")
-            table.add({"texto": txt, "embedding": vec.tolist()})
+            data.append({"texto": txt, "embedding": vec.tolist()})
+
+        table.add(data)  # Agora sim: lista inteira
 
         st.success("Base populada com dados iniciais!")
 
