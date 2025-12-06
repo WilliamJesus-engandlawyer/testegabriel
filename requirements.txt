@@ -1,6 +1,6 @@
 streamlit
 lancedb
-pyarrow
-sentence-transformers
 groq
-numpy
+sentence-transformers
+torch  # Dependência do sentence-transformers
+pydantic  # Já vem com LanceDB, mas pra s
