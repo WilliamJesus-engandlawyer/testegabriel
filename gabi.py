@@ -53,9 +53,9 @@ def load_lancedb_and_table():
     Retorna (db, table) ou (None, None) em caso de erro.
     """
     try:
-        db = lancedb.connect(LANCE_DIR)
+        db = lancedb.connect("./rag")
     except Exception as e:
-        return None, None, f"Erro ao conectar a {LANCE_DIR}: {e}"
+        return None, None, f"db = lancedb.connect(/rag)"
 
     try:
         tables = db.table_names()
