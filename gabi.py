@@ -1,12 +1,20 @@
 """
 gabi.py — Dr. Gabriel (versão final integrada com sua RAG / LanceDB)
 
-Requisitos mínimos (no arquivo requirements.txt):
-- streamlit
-- lancedb
-- sentence-transformers
-- groq (opcional, só se usar a API Groq)
-- (outros pequenos: numpy, tqdm, ...)
+IMPORTANTE LEMBRAR DA ORGANIZAÇÃO DAS PASTAS, QUANDO FOR MODIFICAR ALGO NO CÓDIGO 
+testegabriel/
+ ├── gabi.py
+ ├── requirements.txt
+ ├── rag/
+ │    ├── laws.lance/       ← tabela LanceDB
+ │    │     ├── data/
+ │    │     ├── index/
+ │    │     └── version
+ │    ├── documents.json
+ │    ├── metadados_normas.json
+ │    └── parents.json
+
+
 
 Como usar:
 1. Tenha a pasta ./lancedb no mesmo nível deste arquivo (exportada do Colab).
@@ -33,9 +41,9 @@ st.set_page_config(page_title="Dr. Gabriel", page_icon="⚖️", layout="centere
 # -------------------------
 # Configurações simples
 # -------------------------
-LANCE_DIR = "./lancedb"   # pasta que você exportou do Colab
-TABLE_NAME = "laws"       # tabela criada pela sua Célula 6
-VECTOR_COLNAME = "vector" # conforme seu pipeline (Célula 6)
+LANCE_DIR = "./lancedb"   # pasta exportada do Colab
+TABLE_NAME = "laws"       # tabela criada pela Célula 6 do código da rag
+VECTOR_COLNAME = "vector" # conforme pipeline da (Célula 6)
 EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 TOP_K = 6                 # quantos resultados usar no prompt / exibir
 
