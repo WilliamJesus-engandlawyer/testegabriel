@@ -37,7 +37,6 @@ except Exception:
     HAS_GROQ = False
 
 st.set_page_config(page_title="Dr. Gabriel Bazzeggio, um homem uma maquina", page_icon="⚖️", layout="centered")
-st.set_page_config(page_title="feito por Will, cosplayer, bacharel em direito e engenheiro da computação", page_icon="⚖️", layout="centered")
 # -------------------------
 # Configurações simples
 # -------------------------
@@ -168,6 +167,7 @@ def build_groq_prompt(question: str, docs: List[Dict[str, Any]]) -> str:
 # UI Streamlit
 # -------------------------
 st.title("⚖️ Dr. Gabriel — Assistente Tributário (RAG)")
+st.subheader("Feito por Will — cosplayer, bacharel em Direito e engenheiro da computação")
 st.caption("Base oficial: `./lancedb` (tabela 'laws'). Usando embeddings pré-gerados.")
 
 # mostra status de conexão com a base
