@@ -1,6 +1,7 @@
-streamlit==1.38.0  # Versão estável
-lancedb==0.12.0  # Última em 2025
-groq==0.9.0
-sentence-transformers==3.0.1
-torch==2.4.0
-pydantic==2.8.2
+streamlit
+groq
+lancedb
+numpy
+pandas
+pyarrow
+python-dotenv
