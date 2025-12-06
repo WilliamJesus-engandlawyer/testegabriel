@@ -4,7 +4,7 @@
 
 import streamlit as st
 import lancedb
-from lancedb.pydantic import LanceModel, Vector  # Uso recomendado para vetores
+import pyarrow as pa
 from groq import Groq
 from sentence_transformers import SentenceTransformer
 
@@ -27,14 +27,15 @@ def init_rag():
     # Conecta ao banco
     db = lancedb.connect("db")
 
-    # Define o schema com Pydantic para garantir tipo vetor reconhecido
-    class Doc(LanceModel):
-        texto: str
-        vector: Vector(384)  # Dimensão exata do modelo MiniLM-L12-v2
+    # Schema com fixed_size_list e nome 'vector'
+    schema = pa.schema([
+        pa.field("texto", pa.string()),
+        pa.field("vector", pa.fixed_size_list(pa.float32(), 384))
+    ])
 
     # Cria tabela se não existir
     try:
-        table = db.create_table("docs", schema=Doc, mode="create")
+        table = db.create_table("docs", schema=schema, mode="create")
     except:
         table = db.open_table("docs")
 
@@ -59,18 +60,25 @@ def init_rag():
 
         data = []
         for txt in textos_iniciais:
-            vec = emb_model.encode(txt).tolist()  # Já é float32, converte pra list
+            vec = emb_model.encode(txt).tolist()  # Converte para list diretamente
             data.append({"texto": txt, "vector": vec})
 
         table.add(data)
 
-        # Cria índice explicitamente para buscas eficientes
-        table.create_index(vector_column_name="vector", metric="cosine")
+        # Cria índice explicitamente
+        table.create_index(
+            vector_column_name="vector",
+            metric="cosine",
+            index_type="IVF_PQ",
+            num_partitions=2,  # Pequeno para MVP
+            num_sub_vectors=4
+        )
 
         st.success("Base populada e índice criado!")
 
-    # Debug: Mostra o schema pra verificar (remova após testar)
-    st.info(f"Schema da tabela: {table.schema}")
+    # Debug: Mostra o schema para verificar se 'vector' é reconhecido
+    st.info(f"Schema da tabela: {str(table.schema)}")
+    st.info(f"Número de rows: {table.count_rows()}")
 
     return table, emb_model
 
@@ -82,9 +90,16 @@ table, emb_model = init_rag()
 # ------------------------------------------------------------
 def busca_rag(pergunta, k=5):
     vec = emb_model.encode(pergunta).tolist()
-    # Especifica explicitamente a coluna vetor para evitar inferência falha
-    result = table.search(vec, vector_column_name="vector").metric("cosine").limit(k).to_list()
-    return result
+    # Sempre especifica vector_column_name para evitar erro de inferência
+    try:
+        result = table.search(
+            vec,
+            vector_column_name="vector"
+        ).metric("cosine").limit(k).to_list()
+        return result
+    except Exception as e:
+        st.error(f"Erro na busca: {str(e)}")
+        return []
 
 
 # ------------------------------------------------------------
@@ -113,10 +128,13 @@ if pergunta := st.chat_input("Digite sua pergunta tributária..."):
             # 1. Busca no RAG
             docs = busca_rag(pergunta, k=5)
 
-            contexto = "\n\n".join([d["texto"] for d in docs])
+            if not docs:
+                resposta_final = "Não encontrei informações relevantes na base. Tente reformular a pergunta."
+            else:
+                contexto = "\n\n".join([d["texto"] for d in docs])
 
-            # 2. Prompt final
-            prompt_llm = f"""
+                # 2. Prompt final
+                prompt_llm = f"""
 Você é o Dr. Gabriel, procurador municipal especialista em IPTU, ISS e ITBI.
 
 Use APENAS as informações do bloco "LEIS".
@@ -129,15 +147,16 @@ LEIS:
 Responda com precisão jurídica, tom profissional e sem inventar leis inexistentes.
 """
 
-            # 3. Gera resposta com GROQ
-            try:
-                resp = groq_client.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[{"role": "user", "content": prompt_llm}]
-                )
-                resposta_final = resp.choices[0].message.content
-            except Exception as e:
-                resposta_final = f"Erro na API: {str(e)}"
+                # 3. Gera resposta com GROQ
+                try:
+                    resp = groq_client.chat.completions.create(
+                        model="llama3-70b-8192",
+                        messages=[{"role": "user", "content": prompt_llm}],
+                        temperature=0.2  # Baixa para precisão
+                    )
+                    resposta_final = resp.choices[0].message.content
+                except Exception as e:
+                    resposta_final = f"Erro na API GROQ: {str(e)}"
 
             st.write(resposta_final)
 
@@ -145,7 +164,8 @@ Responda com precisão jurídica, tom profissional e sem inventar leis inexisten
                 {"role": "assistant", "content": resposta_final}
             )
 
-# Botão para limpar chat (opcional)
-if st.button("Limpar conversa"):
+# Botão para limpar chat e debug
+if st.button("Limpar conversa e recarregar base"):
     st.session_state.chat = [{"role": "assistant", "content": "Em que posso ajudar hoje?"}]
+    st.cache_resource.clear()
     st.rerun()
