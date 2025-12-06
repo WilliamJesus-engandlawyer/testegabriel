@@ -4,4 +4,5 @@ lancedb
 numpy
 pandas
 pyarrow
+sentence-transformers
 python-dotenv
