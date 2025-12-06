@@ -218,7 +218,7 @@ if prompt:
                     try:
                         # usa a API de chat/completions do Groq
                         resp = groq_client.chat.completions.create(
-                          model="meta-llama/llama-3.3-70b-instruct",
+                          model="llama-3.3-70b-versatile",
                             messages=[{"role": "user", "content": prompt_for_model}],
                             temperature=0.0
                         )
