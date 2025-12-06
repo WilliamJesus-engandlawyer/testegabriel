@@ -36,8 +36,8 @@ try:
 except Exception:
     HAS_GROQ = False
 
-st.set_page_config(page_title="Dr. Gabriel", page_icon="⚖️", layout="centered")
-
+st.set_page_config(page_title="Dr. Gabriel Bazzeggio, um homem uma maquina", page_icon="⚖️", layout="centered")
+st.set_page_config(page_title="feito por Will, cosplayer, bacharel em direito e engenheiro da computação", page_icon="⚖️", layout="centered")
 # -------------------------
 # Configurações simples
 # -------------------------
