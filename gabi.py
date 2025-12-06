@@ -1,4 +1,4 @@
-# gabi.py — versão que FUNCIONA no Streamlit Cloud (Dezembro 2025)
+# gabi.py — versão CORRIGIDA para Streamlit Cloud
 import streamlit as st
 import lancedb
 from lancedb.pydantic import LanceModel, Vector
@@ -14,7 +14,7 @@ def load_db():
 
     class Document(LanceModel):
         texto: str
-        vector: Vector(384)          # ← esse é o pulo do gato
+        vector: Vector(384)          # ← dimensão do modelo
 
     try:
         tbl = db.create_table("docs", schema=Document, mode="create")
@@ -45,7 +45,8 @@ table, embedder = load_db()
 
 def busca(pergunta, k=5):
     q_vec = embedder.encode(pergunta).tolist()
-    return table.search(q_vec).metric("cosine").limit(k).to_list()
+    # CORREÇÃO: especificar a coluna de vetores
+    return table.search(q_vec).vector_column_name("vector").metric("cosine").limit(k).to_list()
 
 # ================== UI ==================
 st.title("⚖️ Dr. Gabriel")
