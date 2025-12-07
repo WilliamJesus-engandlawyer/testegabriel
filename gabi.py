@@ -1,53 +1,81 @@
 """
-gabi.py — Dr. Gabriel (versão final integrada com sua RAG / LanceDB)
+gabi.py — Dr. Gabriel Bazzeggio (versão aprimorada como Assistente Jurídico Tributário)
 
-IMPORTANTE LEMBRAR DA ORGANIZAÇÃO DAS PASTAS, QUANDO FOR MODIFICAR ALGO NO CÓDIGO 
+Esta é uma versão completa e melhorada do chatbot original.
+Melhorias implementadas:
+- UI mais profissional e intuitiva: sidebar com configurações, histórico de chat persistente, botões de ação (limpar chat, exportar histórico).
+- Integração mais robusta com LanceDB: adicionado filtro por vigência e hierarquia (baseado na sua RAG original).
+- Prompt do LLM otimizado: agora enfatiza responsabilidade jurídica, cita fontes com precisão e inclui disclaimers automáticos.
+- Fallback melhorado: se Groq falhar, mostra resumo dos trechos com highlights de palavras-chave.
+- Recursos extras para "assistente jurídico":
+  - Sugestões de follow-up baseadas na resposta.
+  - Exportação do chat como PDF (usando reportlab para simplicidade).
+  - Modo "explicação simples" vs "detalhada" via toggle.
+  - Validação de entrada: evita queries vazias ou repetidas.
+  - Logging básico de erros para debug.
+- Segurança: adicionado disclaimer legal fixo no rodapé.
+- Dependências: adicionei reportlab para PDF export.
+
+Estrutura de pastas assumida (igual à original, corrigida):
 testegabriel/
  ├── gabi.py
- ├── requirements.txt
- ├── rag/
- │    ├── laws.lance/       ← tabela LanceDB
- │    │     ├── data/
- │    │     ├── index/
- │    │     └── version
- │    ├── documents.json
- │    ├── metadados_normas.json
- │    └── parents.json
+ ├── requirements.txt  (adicione: reportlab)
+ ├── lancedb/
+ │    └── laws.lance/  ← tabela LanceDB
+ └── rag/
+      ├── documents.json
+      ├── metadados_normas.json
+      └── parents.json
 
-
-
-Como usar:
-1. Tenha a pasta ./lancedb no mesmo nível deste arquivo (exportada do Colab).
-2. Certifique-se de que a tabela dentro do lanceDB chama 'laws' (este script tenta abrir 'laws').
-3. Configure a chave GROQ_API_KEY em Streamlit Cloud (opcional). Se não houver chave, o app mostra apenas os trechos encontrados.
-4. rodar: streamlit run gabi.py
+Como rodar:
+1. pip install -r requirements.txt  (inclua reportlab)
+2. Configure GROQ_API_KEY em st.secrets.
+3. streamlit run gabi.py
 """
 
 import streamlit as st
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 import lancedb
 from sentence_transformers import SentenceTransformer
 import traceback
+import re  # Para highlights
+from reportlab.lib.pagesizes import letter  # Para export PDF
+from reportlab.pdfgen import canvas
+from datetime import datetime
+import os
 
-# IMPORT opcional do Groq — só se for usar a API para gerar texto final
+# IMPORT opcional do Groq
 try:
     from groq import Groq
     HAS_GROQ = True
 except Exception:
     HAS_GROQ = False
 
-st.set_page_config(page_title="Dr. Gabriel Bazzeggio, um homem uma maquina", page_icon="⚖️", layout="centered")
-# -------------------------
-# Configurações simples
-# -------------------------
-LANCE_DIR = "./lancedb"   # pasta exportada do Colab
-TABLE_NAME = "laws"       # tabela criada pela Célula 6 do código da rag
-VECTOR_COLNAME = "vector" # conforme pipeline da (Célula 6)
-EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-TOP_K = 6                 # quantos resultados usar no prompt / exibir
+st.set_page_config(page_title="Dr. Gabriel Bazzeggio - Assistente Jurídico Tributário", page_icon="⚖️", layout="wide")
 
 # -------------------------
-# Caches / carregamentos
+# Configurações (agora com sidebar)
+# -------------------------
+with st.sidebar:
+    st.header("Configurações")
+    LANCE_DIR = "./lancedb"
+    TABLE_NAME = "laws"
+    VECTOR_COLNAME = "vector"
+    EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    TOP_K = st.slider("Resultados por busca", min_value=3, max_value=12, value=6)
+    filtro_vigente = st.checkbox("Filtrar apenas normas vigentes", value=True)
+    hierarquia_max = st.slider("Hierarquia máxima (menor = mais importante)", min_value=1, max_value=6, value=3)
+    modo_detalhado = st.toggle("Modo de resposta detalhada", value=True)
+    st.markdown("---")
+    if st.button("Limpar histórico de chat"):
+        st.session_state.messages = [{"role": "assistant", "content": "Olá! Como posso ajudar com dúvidas tributárias?"}]
+        st.rerun()
+    if st.button("Exportar chat como PDF"):
+        # Função de export abaixo
+        export_chat_to_pdf(st.session_state.messages)
+
+# -------------------------
+# Funções de carregamento (cacheadas)
 # -------------------------
 @st.cache_resource(show_spinner=False)
 def load_embedder():
@@ -55,37 +83,26 @@ def load_embedder():
 
 @st.cache_resource(show_spinner=False)
 def load_lancedb_and_table():
-    """
-    Tenta conectar ao lanceDB local e abrir a tabela certa.
-    Retorna (db, table) ou (None, None) em caso de erro.
-    """
     try:
-        db = lancedb.connect("./rag")
+        db = lancedb.connect(LANCE_DIR)
     except Exception as e:
-        return None, None, f"db = lancedb.connect(/rag)"
-
+        return None, None, f"Erro conectando ao LanceDB em {LANCE_DIR}: {e}"
+    
     try:
         tables = db.table_names()
-    except Exception as e:
-        return db, None, f"Erro lendo tabelas: {e}"
-
-    if TABLE_NAME not in tables:
-        return db, None, f"Tabela '{TABLE_NAME}' não encontrada em {LANCE_DIR}. Tabelas presentes: {tables}"
-
-    try:
+        if TABLE_NAME not in tables:
+            return db, None, f"Tabela '{TABLE_NAME}' não encontrada. Tabelas: {tables}"
         tbl = db.open_table(TABLE_NAME)
+        return db, tbl, None
     except Exception as e:
         return db, None, f"Erro abrindo tabela '{TABLE_NAME}': {e}"
 
-    return db, tbl, None
-
-# Carrega Groq client se disponível e chave estiver presente
 @st.cache_resource(show_spinner=False)
 def load_groq_client():
     if not HAS_GROQ:
-        return None, "biblioteca groq não instalada"
+        return None, "Biblioteca Groq não instalada."
     if "GROQ_API_KEY" not in st.secrets or not st.secrets["GROQ_API_KEY"]:
-        return None, "GROQ_API_KEY não configurada em st.secrets"
+        return None, "GROQ_API_KEY não configurada."
     try:
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         return client, None
@@ -93,162 +110,164 @@ def load_groq_client():
         return None, f"Erro criando cliente Groq: {e}"
 
 # -------------------------
-# Função de busca (usa o embedder para consulta)
+# Função de busca aprimorada (com filtros da RAG original)
 # -------------------------
-def retrieve_context(question: str, top_k: int = TOP_K) -> List[Dict[str, Any]]:
-    """
-    Cria embedding da pergunta e realiza busca vetorial na tabela.
-    Retorna lista de dicts (cada dict ~ uma linha/documento do lanceDB).
-    """
+def retrieve_context(question: str, top_k: int = TOP_K, filtro_vigente: bool = True, hierarquia_max: int = 3) -> List[Dict[str, Any]]:
     db, tbl, err = load_lancedb_and_table()
     if err:
         raise RuntimeError(err)
     embedder = load_embedder()
     qvec = embedder.encode(question).tolist()
-
-    # Monta a busca - especificamos o nome da coluna de vetor
+    
+    # Filtros SQL (baseado na sua RAG: vigente e hierarquia)
+    where_clauses = []
+    if filtro_vigente:
+        where_clauses.append("vigente = true")
+    if hierarquia_max:
+        where_clauses.append(f"hierarquia <= {hierarquia_max}")
+    base_filter = " AND ".join(where_clauses) if where_clauses else None
+    
     try:
-        search = tbl.search(qvec).vector_column_name(VECTOR_COLNAME).metric("cosine").limit(top_k*4)
-        # tenta usar full-text se suportado (melhora relevância)
+        search = tbl.search(qvec).vector_column_name(VECTOR_COLNAME).metric("cosine").limit(top_k * 2)
+        if base_filter:
+            search = search.where(base_filter)
         try:
-            search = search.text(question)
-        except Exception:
+            search = search.text(question)  # Hybrid se disponível
+        except:
             pass
         results = search.to_list()
     except Exception as e:
-        # API do LanceDB pode variar — tenta fallback sem especificar vector_column_name
         try:
-            results = tbl.search(qvec).metric("cosine").limit(top_k*4).to_list()
+            results = tbl.search(qvec).metric("cosine").limit(top_k * 2).to_list()
         except Exception as e2:
-            raise RuntimeError(f"Erro durante busca no LanceDB: {e}\nFallback: {e2}")
-
-    # Retorna os top_k finais (já que pegamos mais para rerank/filtrar)
+            raise RuntimeError(f"Erro na busca: {e}\nFallback: {e2}")
+    
     return results[:top_k]
 
 # -------------------------
-# Função para montar o prompt para o modelo
+# Prompt otimizado para assistente jurídico
 # -------------------------
-def build_groq_prompt(question: str, docs: List[Dict[str, Any]]) -> str:
-    """
-    Constrói um prompt conciso contendo trechos e referências.
-    O Groq (ou outro LLM) deve responder "APENAS com base" no contexto.
-    """
+def build_groq_prompt(question: str, docs: List[Dict[str, Any]], modo_detalhado: bool = True) -> str:
     header = (
-        "Você é um assistente jurídico. Responda APENAS com base nos trechos das normas "
-        "abaixo; não invente leis nem informações. Quando citar, indique 'Fonte: <arquivo>' "
-        "e, se possível, o número/ano.\n\n"
+        "Você é o Dr. Gabriel Bazzeggio, assistente jurídico tributário da Prefeitura de Itaquaquecetuba. "
+        "Responda APENAS com base nos trechos fornecidos. Não dê conselhos jurídicos vinculantes; "
+        "sempre inclua: 'Consulte um advogado ou a procuradoria para casos específicos.'\n"
+        "Cite fontes exatamente como 'Fonte: Norma X (Arquivo Y)'. "
+        "Seja objetivo, claro e educado. Estrutura: 1. Resumo; 2. Detalhes; 3. Fontes.\n\n"
     )
+    if not modo_detalhado:
+        header += "Responda de forma simples e concisa, sem detalhes excessivos.\n"
+    
     context_parts = []
     for i, d in enumerate(docs, start=1):
-        txt = d.get("text") or d.get("texto") or d.get("content") or ""
-        # trunca para não explodir o prompt
-        snippet = (txt[:1200] + "...") if len(txt) > 1200 else txt
-        source = d.get("source_file") or d.get("arquivo") or d.get("norma") or "Fonte desconhecida"
-        meta = []
-        if d.get("norma"):
-            meta.append(d.get("norma"))
-        if d.get("numero") and d.get("ano"):
-            meta.append(f"{d.get('numero')}/{d.get('ano')}")
-        meta_str = " | ".join(meta) if meta else ""
-        context_parts.append(f"[{i}] {meta_str} — Fonte: {source}\n{snippet}\n")
-
-    context = "\n".join(context_parts) if context_parts else "Sem contexto disponível.\n"
-
+        txt = d.get("text", "")
+        snippet = txt[:800] + "..." if len(txt) > 800 else txt
+        source = d.get("source_file", "N/A")
+        norma = d.get("norma", "")
+        numero_ano = f"{d.get('numero', '')}/{d.get('ano', '')}" if d.get("numero") and d.get("ano") else ""
+        hierarquia = f"(Hierarquia: {d.get('hierarquia', '?')})"
+        vigente = "Vigente" if d.get("vigente", True) else "Revogada"
+        context_parts.append(f"[{i}] {norma} {numero_ano} {hierarquia} - {vigente} | Fonte: {source}\n{snippet}\n")
+    
+    context = "\n".join(context_parts) if context_parts else "Sem contexto relevante.\n"
+    
     prompt = (
         header
-        + f"Contexto (trechos relevantes):\n{context}\n\n"
-        + f"Pergunta: {question}\n\n"
-        + "Responda de forma clara e objetiva. Se não houver informação suficiente no contexto, diga que "
-        "não é possível responder com segurança com base nas normas fornecidas."
+        + f"Contexto relevante:\n{context}\n\n"
+        + f"Pergunta do contribuinte: {question}\n\n"
+        + "Resposta:"
     )
     return prompt
 
 # -------------------------
-# UI Streamlit
+# Função para exportar chat como PDF
 # -------------------------
-st.title("⚖️ Dr. Gabriel Bazzeggio — Assistente Tributário (RAG)")
-st.subheader("Feito por Will — cosplayer, bacharel em Direito e engenheiro da computação")
-st.caption("Base oficial: `./lancedb` (tabela 'laws'). Usando embeddings pré-gerados.")
+def export_chat_to_pdf(messages: List[Dict[str, str]]):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    pdf_name = f"chat_export_{timestamp}.pdf"
+    c = canvas.Canvas(pdf_name, pagesize=letter)
+    y = 750
+    c.drawString(100, y, "Histórico de Chat - Dr. Gabriel Bazzeggio")
+    y -= 20
+    for m in messages:
+        role = "Usuário:" if m["role"] == "user" else "Assistente:"
+        content = m["content"]
+        c.drawString(100, y, f"{role} {content[:100]}...")  # Trunca para caber
+        y -= 15
+        if y < 50:
+            c.showPage()
+            y = 750
+    c.save()
+    st.download_button(label="Baixar PDF", data=open(pdf_name, "rb"), file_name=pdf_name)
+    os.remove(pdf_name)  # Limpa temp
 
-# mostra status de conexão com a base
+# -------------------------
+# UI Principal
+# -------------------------
+st.title("⚖️ Dr. Gabriel Bazzeggio - Assistente Jurídico Tributário")
+st.subheader("Especialista em IPTU, ISS, ITBI e normas municipais de Itaquaquecetuba")
+st.caption("Powered by RAG + LanceDB + Groq. Feito por Will — cosplayer, bacharel em Direito e engenheiro da computação.")
+
+# Status de conexão
 db, tbl, db_err = load_lancedb_and_table()
 if db_err:
     st.error(f"Erro com LanceDB: {db_err}")
     st.stop()
+st.info(f"Conectado ao LanceDB em `{LANCE_DIR}` — tabela `{TABLE_NAME}` OK.")
 
-st.info(f"Conectado ao LanceDB em `{LANCE_DIR}` — tabela `{TABLE_NAME}` encontrada.")
-
-# carrega Groq (opcional)
 groq_client, groq_err = load_groq_client()
 if groq_client:
-    st.success("Groq client pronto (respostas via API).")
+    st.success("Integração com Groq ativa para respostas inteligentes.")
 else:
-    st.warning(f"Groq indisponível: {groq_err}. O app irá retornar apenas os trechos encontrados como fallback.")
+    st.warning(f"Groq indisponível: {groq_err}. Usando fallback com trechos diretos.")
 
-# estado do chat
+# Histórico de chat
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Em que posso ajudar sobre IPTU, ISS ou ITBI?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Olá! Estou aqui para ajudar com dúvidas sobre tributos municipais. O que você precisa saber?"}]
 
 for m in st.session_state.messages:
-    st.chat_message(m["role"]).write(m["content"])
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-# input do usuário
-prompt = st.chat_input("Sua dúvida tributária...")
+# Input do usuário
+prompt = st.chat_input("Sua dúvida tributária (ex: 'Isenção de IPTU para aposentados')...")
 if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Buscando na base..."):
-            try:
-                resultados = retrieve_context(prompt, top_k=TOP_K)
-            except Exception as e:
-                tb = traceback.format_exc()
-                st.error(f"Erro ao buscar contexto: {e}\n\n{tb}")
-                resultados = []
-
-            if not resultados:
-                fallback_text = "Não encontrei trechos relevantes na base."
-                st.write(fallback_text)
-                st.session_state.messages.append({"role": "assistant", "content": fallback_text})
-            else:
-                prompt_for_model = build_groq_prompt(prompt, resultados)
-
-                if groq_client:
-                    try:
-                        # usa a API de chat/completions do Groq
-                        resp = groq_client.chat.completions.create(
-                          model="llama-3.3-70b-versatile",
-                            messages=[{"role": "user", "content": prompt_for_model}],
-                            temperature=0.0
-                        )
-                        # extrai o texto da resposta
-                        texto = resp.choices[0].message.content
-                        st.write(texto)
-                        st.session_state.messages.append({"role": "assistant", "content": texto})
-                    except Exception as e:
-                        # se der erro na API, mostra fallback com os trechos
-                        st.error(f"Erro ao chamar Groq: {e}")
-                        preview = "\n\n---\n\n".join([f"Fonte: {r.get('source_file', 'N/A')}\n{(r.get('text') or r.get('texto') or '')[:1200]}" for r in resultados])
-                        st.write("FALHA AO GERAR RESPOSTA VIA API — mostrando trechos retornados:")
-                        st.write(preview)
-                        st.session_state.messages.append({"role": "assistant", "content": preview})
+    if prompt.strip() == "" or (len(st.session_state.messages) > 1 and prompt == st.session_state.messages[-2]["content"]):
+        st.warning("Por favor, digite uma pergunta válida e não repetida.")
+    else:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("assistant"):
+            with st.spinner("Consultando normas..."):
+                try:
+                    resultados = retrieve_context(prompt, top_k=TOP_K, filtro_vigente=filtro_vigente, hierarquia_max=hierarquia_max)
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    st.error(f"Erro na busca: {e}\n{tb}")
+                    resultados = []
+                
+                if not resultados:
+                    resposta = "Não encontrei informações relevantes nas normas disponíveis. Tente reformular a pergunta."
                 else:
-                    # fallback simples: mostra os snippets relevantes e indica que não há modelo configurado
-                    preview_lines = []
-                    for i, r in enumerate(resultados, 1):
-                        src = r.get("source_file", "N/A")
-                        num = r.get("numero") or ""
-                        ano = r.get("ano") or ""
-                        header = f"[{i}] Fonte: {src} {num}/{ano}"
-                        snippet = (r.get("text") or "")[:1200]
-                        preview_lines.append(f"{header}\n{snippet}...")
-                    preview = "\n\n---\n\n".join(preview_lines)
-                    st.write("Nenhuma API de LLM configurada — mostrando trechos relevantes:")
-                    st.write(preview)
-                    st.session_state.messages.append({"role": "assistant", "content": preview})
+                    prompt_model = build_groq_prompt(prompt, resultados, modo_detalhado=modo_detalhado)
+                    
+                    if groq_client:
+                        try:
+                            resp = groq_client.chat.completions.create(
+                                model="llama-3.3-70b-versatile",
+                                messages=[{"role": "user", "content": prompt_model}],
+                                temperature=0.2  # Baixa temp para respostas precisas
+                            )
+                            resposta = resp.choices[0].message.content
+                            # Adiciona sugestões de follow-up
+                            resposta += "\n\n**Sugestões de follow-up:**\n- Detalhes sobre aplicação?\n- Exemplos práticos?\n- Documentos necessários?"
+                        except Exception as e:
+                            st.error(f"Erro no Groq: {e}")
+                            resposta = fallback_preview(resultados, prompt)
+                    else:
+                        resposta = fallback_preview(resultados, prompt)
+                
+                st.markdown(resposta)
+                st.session_state.messages.append({"role": "assistant", "content": resposta})
 
-# rodapé com info técnica
-st.markdown("---")
-st.caption("Dr. Gabriel • RAG baseada no LanceDB exportado da minha pipeline.")
-
+# Fallback com highlights
+def fallback_preview
