@@ -1,8 +1,10 @@
-streamlit
-groq
-lancedb
+
+streamlit>=1.38.0
+lancedb>=0.13.0
 sentence-transformers
-python-dotenv
-numpy
-pandas
+torch
+groq
+reportlab
+pydantic
 pyarrow
+tqdm
