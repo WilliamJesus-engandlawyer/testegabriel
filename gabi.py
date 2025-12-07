@@ -270,4 +270,21 @@ if prompt:
                 st.session_state.messages.append({"role": "assistant", "content": resposta})
 
 # Fallback com highlights
-def fallback_preview
+def fallback_preview(resultados: List[Dict], question: str) -> str:
+    preview_lines = []
+    keywords = re.findall(r'\w+', question.lower())[:5]  # Top 5 palavras-chave da query
+    for i, r in enumerate(resultados, 1):
+        txt = r.get("text", "")
+        for kw in keywords:
+            txt = re.sub(f"({kw})", r"**\1**", txt, flags=re.IGNORECASE)
+        source = f"Fonte: {r.get('norma', 'N/A')} ({r.get('source_file', 'N/A')})"
+        preview_lines.append(f"[{i}] {source}\n{txt[:600]}...")
+    return "Sem API LLM disponível. Trechos relevantes:\n\n" + "\n\n---\n\n".join(preview_lines)
+
+# Rodapé com disclaimer jurídico
+st.markdown("---")
+st.caption(
+    "⚠️ **Disclaimer:** Este é um assistente de suporte, não substitui consulta profissional. "
+    "As respostas são baseadas em normas públicas e não constituem parecer jurídico oficial. "
+    "Consulte sempre a Procuradoria Municipal para orientações vinculantes."
+)
