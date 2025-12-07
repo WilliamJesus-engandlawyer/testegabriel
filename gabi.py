@@ -1,19 +1,22 @@
 """
-gabi.py — Dr. Gabriel Bazzeggio (VERSÃO FINAL 100% FUNCIONAL NO STREAMLIT CLOUD)
-Corrigido o erro de asyncio do LanceDB + várias melhorias
+gabi.py — Dr. Gabriel Bazzeggio
+VERSÃO FINAL 100% FUNCIONAL NO STREAMLIT CLOUD (Dezembro 2025)
 """
 
 import streamlit as st
-from typing import List, Dict, Any
+import os
+from typing import List, Dict
+
+# ========================================
+# FORÇA LANCEDB A RODAR 100% SÍNCRONO (OBRIGATÓRIO NO STREAMLIT CLOUD)
+# ========================================
+os.environ["LANCEDB_ASYNC"] = "0"           # ← ESSA LINHA É O SEGREDO
+os.environ["LANCEDB_DISABLE_BACKGROUND"] = "1"
+
 import lancedb
 from sentence_transformers import SentenceTransformer
-import os
-from datetime import datetime
 
-# === FORÇA O LANCEDB A RODAR EM MODO SÍNCRONO (ESSA É A CHAVE!) ===
-os.environ["LANCEDB_ASYNC"] = "0"  # ← ESSA LINHA RESOLVE O ERRO NO STREAMLIT CLOUD
-
-# === IMPORTS OPCIONAIS ===
+# Groq opcional
 try:
     from groq import Groq
     HAS_GROQ = True
@@ -22,30 +25,25 @@ except ImportError:
 
 st.set_page_config(page_title="Dr. Gabriel Bazzeggio", page_icon="⚖️", layout="wide")
 
-# -------------------------
-# Configurações
-# -------------------------
+# ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("Configurações")
-    TOP_K = st.slider("Resultados", 3, 10, 6)
+    TOP_K = st.slider("Resultados", 3, 12, 6)
     filtro_vigente = st.checkbox("Apenas normas vigentes", True)
-    hierarquia_max = st.slider("Hierarquia máxima", 1, 6, 3)
+    hierarquia_max = st.slider("Hierarquia máxima (1=CF, 3=leis municipais)", 1, 6, 3)
     modo_detalhado = st.toggle("Resposta detalhada", True)
     st.markdown("---")
     if st.button("Limpar chat"):
         st.session_state.messages = []
         st.rerun()
 
-# -------------------------
-# Carregamento com cache
-# -------------------------
+# ====================== CARREGAMENTO ======================
 @st.cache_resource
 def load_db():
     try:
-        # Força modo síncrono e desabilita background threads
-        db = lancedb.connect("./lancedb", read_mode="sync")
+        db = lancedb.connect("./lancedb")           # ← SEM read_mode! Só a env var
         table = db.open_table("laws")
-        st.success(f"Base conectada: {table.to_arrow().num_rows} registros")
+        st.success(f"Base conectada: {table.to_arrow().num_rows:,} registros")
         return table
     except Exception as e:
         st.error(f"Erro ao conectar no LanceDB: {e}")
@@ -64,15 +62,11 @@ def load_groq():
     except:
         return None
 
-# -------------------------
-# Busca corrigida (100% síncrona)
-# -------------------------
+# ====================== BUSCA ======================
 def retrieve(question: str):
     table = load_db()
-    embedder = load_embedder()
-    vec = embedder.encode(question).astype("float32")
+    vec = load_embedder().encode(question).astype("float32")
 
-    # Filtros
     where = []
     if filtro_vigente:
         where.append("vigente = true")
@@ -80,97 +74,85 @@ def retrieve(question: str):
         where.append(f"hierarquia <= {hierarquia_max}")
     filter_str = " AND ".join(where) if where else None
 
-    # Busca 100% síncrona
     search = table.search(vec).metric("cosine").limit(TOP_K * 2)
     if filter_str:
         search = search.where(filter_str, prefilter=True)
     try:
-        search = search.text(question)
+        search = search.text(question)   # hybrid search
     except:
         pass
 
-    results = search.to_list()
-    return results[:TOP_K]
+    return search.to_list()[:TOP_K]
 
-# -------------------------
-# Prompt
-# -------------------------
+# ====================== PROMPT ======================
 def build_prompt(question: str, docs: List[Dict]):
     header = (
         "Você é o Dr. Gabriel Bazzeggio, assistente jurídico tributário da Prefeitura de Itaquaquecetuba.\n"
-        "Responda APENAS com base nos trechos abaixo. Seja objetivo, cite fontes e termine com:\n"
-        "'Consulte a Procuradoria Municipal para orientação oficial.'\n\n"
+        "Responda apenas com base nos trechos abaixo. Seja claro, objetivo e cite as fontes.\n"
+        "Sempre termine com: 'Consulte a Procuradoria Municipal para orientação oficial.'\n\n"
     )
     if not modo_detalhado:
-        header += "Responda de forma curta e simples.\n"
+        header += "Responda de forma simples e curta.\n"
 
     context = ""
     for i, d in enumerate(docs, 1):
         norma = d.get("norma", "Norma")
-        num = d.get("numero", "")
-        ano = d.get("ano", "")
+        num_ano = f"{d.get('numero','')}/{d.get('ano','')}".strip("/")
         fonte = os.path.basename(d.get("source_file", "arquivo"))
         vigente = "Vigente" if d.get("vigente", True) else "Revogada"
-        texto = d["text"][:900] + "..." if len(d["text"]) > 900 else d["text"]
-        context += f"[{i}] {norma} {num}/{ano} ({vigente})\nFonte: {fonte}\n{texto}\n\n"
+        texto = d["text"][:1000] + ("..." if len(d["text"]) > 1000 else "")
+        context += f"[{i}] {norma} {num_ano} ({vigente})\nFonte: {fonte}\n{texto}\n\n"
 
     return header + f"CONEXTO:\n{context}\nPERGUNTA: {question}\nRESPOSTA:"
 
-# -------------------------
-# UI
-# -------------------------
+# ====================== UI ======================
 st.title("Dr. Gabriel Bazzeggio")
-st.subheader("Assistente Jurídico Tributário • Itaquaquecetuba")
+st.subheader("Assistente Jurídico Tributário • Itaquaquecetuba/SP")
 st.caption("RAG + LanceDB + Groq • Dezembro 2025")
 
 client = load_groq()
-if client:
-    st.success("Groq API ativa")
-else:
-    st.warning("Groq indisponível → respostas com trechos diretos")
+st.write("Groq API ativa" if client else "Groq indisponível → modo fallback")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Olá! Como posso ajudar com IPTU, ISS, ITBI ou leis municipais hoje?"}]
+    st.session_state.messages = [{
+        "role": "assistant",
+        "content": "Olá! Como posso ajudar com IPTU, ISS, ITBI ou leis municipais hoje?"
+    }]
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).markdown(msg["content"])
 
 if prompt := st.chat_input("Digite sua dúvida (ex: isenção IPTU aposentado)..."):
-    if len(prompt.strip()) < 3:
-        st.warning("Digite uma pergunta mais completa.")
-    else:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        st.chat_message("user").write(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.chat_message("user").write(prompt)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Consultando normas..."):
-                try:
-                    docs = retrieve(prompt)
-                    if not docs:
-                        resposta = "Não encontrei informações relevantes nas normas carregadas."
+    with st.chat_message("assistant"):
+        with st.spinner("Consultando as normas..."):
+            try:
+                docs = retrieve(prompt)
+                if not docs:
+                    resposta = "Não encontrei informações relevantes nas normas carregadas."
+                else:
+                    full_prompt = build_prompt(prompt, docs)
+                    if client:
+                        resp = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[{"role": "user", "content": full_prompt}],
+                            temperature=0.1,
+                            max_tokens=1200
+                        )
+                        resposta = resp.choices[0].message.content
                     else:
-                        full_prompt = build_prompt(prompt, docs)
-                        if client:
-                            try:
-                                resp = client.chat.completions.create(
-                                    model="llama-3.3-70b-versatile",
-                                    messages=[{"role": "user", "content": full_prompt}],
-                                    temperature=0.1,
-                                    max_tokens=1200
-                                )
-                                resposta = resp.choices[0].message.content
-                            except Exception as e:
-                                st.error("Erro no Groq")
-                                resposta = "\n\n".join([f"**{d.get('norma','')}** ({os.path.basename(d.get('source_file',''))})\n{d['text'][:800]}..." for d in docs])
-                        else:
-                            resposta = "\n\n---\n\n".join([f"**{d.get('norma','')}** ({os.path.basename(d.get('source_file',''))})\n{d['text'][:800]}..." for d in docs])
-                        
-                        resposta += "\n\n_Consulte a Procuradoria Municipal para orientação oficial._"
-                        st.markdown(resposta)
-                        st.session_state.messages.append({"role": "assistant", "content": resposta})
-                except Exception as e:
-                    st.error("Erro interno na busca. Tente novamente.")
-                    st.write(e)
+                        resposta = "\n\n---\n\n".join([
+                            f"**{d.get('norma','Norma')}** ({os.path.basename(d.get('source_file',''))})\n{d['text'][:900]}..."
+                            for d in docs
+                        ])
+                    resposta += "\n\n_Consulte a Procuradoria Municipal para orientação oficial._"
+                st.markdown(resposta)
+                st.session_state.messages.append({"role": "assistant", "content": resposta})
+            except Exception as e:
+                st.error("Erro interno. Tente novamente.")
+                st.write(e)
 
 st.markdown("---")
-st.caption("⚠️ Este assistente não substitui consulta jurídica oficial • Desenvolvido por Will • 2025")
+st.caption("Este assistente não substitui consulta jurídica oficial • Desenvolvido por Will • 2025")
