@@ -1,5 +1,5 @@
 # gabi.py — Dr. Gabriel Bazzeggio
-# VERSÃO FINAL CORRIGIDA (Dezembro 2025) — Hybrid search sem reranker extra
+# VERSÃO FINAL ESTÁVEL (Dezembro 2025) — Vector search puro + LIKE boosts
 import os
 from typing import List, Dict
 import streamlit as st
@@ -64,7 +64,7 @@ def load_groq():
     except:
         return None
 
-# ====================== BUSCA INTELIGENTE (HYBRID SIMPLES) ======================
+# ====================== BUSCA INTELIGENTE (VECTOR + LIKE ESTÁVEL) ======================
 def retrieve(question: str) -> List[Dict]:
     table = load_db()
     model = load_embedder()
@@ -84,7 +84,7 @@ def retrieve(question: str) -> List[Dict]:
     else:
         where_parts.append("categoria = 'Direito Material'")  # default
 
-    # Boost de palavras-chave (muito importante em tributário!)
+    # Boost de palavras-chave (LIKE para hybrid simples e estável)
     boost_keywords = []
     if boost_isencao and any(x in p_lower for x in ["aposentado", "pensionista", "idoso", "deficiente"]):
         boost_keywords.append("text LIKE '%aposentado%' OR text LIKE '%pensionista%' OR text LIKE '%idoso%' OR text LIKE '%deficiente%'")
@@ -93,16 +93,13 @@ def retrieve(question: str) -> List[Dict]:
     if "parcelamento" in p_lower:
         boost_keywords.append("text LIKE '%parcelamento%'")
 
+    # Filtro final
     filter_str = " AND ".join(where_parts)
     if boost_keywords:
         filter_str += f" AND ({' OR '.join(boost_keywords)})"
 
-    # HYBRID SEARCH SIMPLES (sem reranker extra — usa default RRF interno)
-    search = table.search(
-        vec, 
-        query_type="hybrid",  # Semantic + full-text automático com a query
-        metric="cosine"
-    ).limit(TOP_K * 3).where(filter_str, prefilter=True)
+    # VECTOR SEARCH PURO (estável em todas as versões — cosine do índice)
+    search = table.search(vec).limit(TOP_K * 3).where(filter_str, prefilter=True)
 
     results = search.to_list()
     return results[:TOP_K]
@@ -130,7 +127,7 @@ def build_prompt(question: str, docs: List[Dict]) -> str:
 # ====================== UI ======================
 st.title("⚖️ Dr. Gabriel Bazzeggio")
 st.subheader("Assistente Jurídico Tributário • Prefeitura de Itaquaquecetuba")
-st.caption("RAG + neuralmind/bert-base-portuguese-cased + LanceDB Hybrid + Groq • Dezembro 2025")
+st.caption("RAG + neuralmind/bert-base-portuguese-cased + LanceDB Vector + Groq • Dezembro 2025")
 
 client = load_groq()
 st.write("Groq API ativa (Llama 3.3 70B)" if client else "Modo local (resumo de trechos)")
