@@ -1,16 +1,17 @@
 """
 gabi.py — Dr. Gabriel Bazzeggio
-VERSÃO FINAL 100% FUNCIONAL NO STREAMLIT CLOUD (Dezembro 2025)
+VERSÃO ATUALIZADA 100% FUNCIONAL NO STREAMLIT CLOUD (Dezembro 2025)
 """
 
-import streamlit as st
 import os
 from typing import List, Dict
 
-# ========================================
-# FORÇA LANCEDB A RODAR 100% SÍNCRONO (OBRIGATÓRIO NO STREAMLIT CLOUD)
-# ========================================
-os.environ["LANCEDB_ASYNC"] = "0"           # ← ESSA LINHA É O SEGREDO
+import streamlit as st
+
+# =========================
+# FORÇA LANCEDB SÍNCRONO
+# =========================
+os.environ["LANCEDB_ASYNC"] = "0"
 os.environ["LANCEDB_DISABLE_BACKGROUND"] = "1"
 
 import lancedb
@@ -23,6 +24,9 @@ try:
 except ImportError:
     HAS_GROQ = False
 
+# =========================
+# CONFIGURAÇÃO PÁGINA
+# =========================
 st.set_page_config(page_title="Dr. Gabriel Bazzeggio", page_icon="⚖️", layout="wide")
 
 # ====================== SIDEBAR ======================
@@ -41,7 +45,7 @@ with st.sidebar:
 @st.cache_resource
 def load_db():
     try:
-        db = lancedb.connect("./lancedb")           # ← SEM read_mode! Só a env var
+        db = lancedb.connect("./lancedb")  # SEM read_mode
         table = db.open_table("laws")
         st.success(f"Base conectada: {table.to_arrow().num_rows:,} registros")
         return table
@@ -78,7 +82,7 @@ def retrieve(question: str):
     if filter_str:
         search = search.where(filter_str, prefilter=True)
     try:
-        search = search.text(question)   # hybrid search
+        search = search.text(question)
     except:
         pass
 
@@ -148,6 +152,7 @@ if prompt := st.chat_input("Digite sua dúvida (ex: isenção IPTU aposentado)..
                             for d in docs
                         ])
                     resposta += "\n\n_Consulte a Procuradoria Municipal para orientação oficial._"
+
                 st.markdown(resposta)
                 st.session_state.messages.append({"role": "assistant", "content": resposta})
             except Exception as e:
