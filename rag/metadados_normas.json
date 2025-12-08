@@ -1,319 +1,402 @@
 [
   {
-    "arquivo":"ConstituicaoTextoAtualizado_EC 136.pdf",
+    "arquivo":"ConstituicaoTextoAtualizado_EC 136 (5).pdf",
     "categoria":"Direito Material",
-    "norma":"ConstituicaoTextoAtualizado_EC 136.pdf",
+    "norma":"ConstituicaoTextoAtualizado_EC 136 (5).pdf",
     "tipo":"Documento Normativo",
     "hierarquia":6,
     "numero":"45",
     "ano":"2004",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência federal\/union (CF art. 153\/154)"
+
     ]
   },
   {
-    "arquivo":"Codigo_tributario_nacional_5ed.pdf",
+    "arquivo":"Codigo_tributario_nacional_5ed (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Codigo_tributario_nacional_5ed.pdf",
+    "norma":"Codigo_tributario_nacional_5ed (5).pdf",
     "tipo":"Documento Normativo",
     "hierarquia":6,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência federal\/union (CF art. 153\/154)"
+
     ]
   },
   {
-    "arquivo":"3.pdf",
+    "arquivo":"3 (16).pdf",
     "categoria":"Direito Material",
-    "norma":"3.pdf",
+    "norma":"3 (16).pdf",
     "tipo":"Documento Normativo",
     "hierarquia":6,
     "numero":"8077",
     "ano":"2022",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência estadual (CF art. 155)"
+
     ]
   },
   {
-    "arquivo":"códigodeposturas.pdf",
+    "arquivo":"códigodeposturas (4).pdf",
     "categoria":"Direito Material",
-    "norma":"códigodeposturas.pdf",
+    "norma":"códigodeposturas (4).pdf",
     "tipo":"Documento Normativo",
     "hierarquia":6,
     "numero":"2860",
     "ano":"2010",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"3 (1).pdf",
+    "arquivo":"3 (17).pdf",
     "categoria":"Direito Material",
-    "norma":"3 (1).pdf",
+    "norma":"3 (17).pdf",
     "tipo":"Documento Normativo",
     "hierarquia":6,
     "numero":"8077",
     "ano":"2022",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência estadual (CF art. 155)"
+
     ]
   },
   {
-    "arquivo":"Lei-complementar-351-2022-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Lei-complementar-351-2022-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-complementar-351-2022-Itaquaquecetuba-SP.pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-complementar-351-2022-Itaquaquecetuba-SP (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Lei-complementar-415-2025-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Lei-complementar-415-2025-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-complementar-415-2025-Itaquaquecetuba-SP.pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-complementar-415-2025-Itaquaquecetuba-SP (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":"14133",
     "ano":"2021",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência estadual (CF art. 155)"
+
     ]
   },
   {
-    "arquivo":"Lei-Complementar- 393-Aut-80-Alteracao-Codigo-Tributario-Municipal-06-11-24.pdf",
+    "arquivo":"Lei-Complementar- 393-Aut-80-Alteracao-Codigo-Tributario-Municipal-06-11-24 (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-Complementar- 393-Aut-80-Alteracao-Codigo-Tributario-Municipal-06-11-24.pdf",
-    "tipo":"Lei Complementar Municipal",
-    "hierarquia":3,
+    "norma":"Lei-Complementar- 393-Aut-80-Alteracao-Codigo-Tributario-Municipal-06-11-24 (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Lei-ordinaria-509-1970-Itaquaquecetuba-SP-consolidada-[18-04-2022].pdf",
+    "arquivo":"Lei-ordinaria-509-1970-Itaquaquecetuba-SP-consolidada-[18-04-2022] (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-ordinaria-509-1970-Itaquaquecetuba-SP-consolidada-[18-04-2022].pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-ordinaria-509-1970-Itaquaquecetuba-SP-consolidada-[18-04-2022] (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":"3603",
     "ano":"2022",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Lei-ordinaria-1386-1993-Itaquaquecetuba-SP-consolidada-[28-11-2002].pdf",
+    "arquivo":"Lei-ordinaria-1386-1993-Itaquaquecetuba-SP-consolidada-[28-11-2002] (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-ordinaria-1386-1993-Itaquaquecetuba-SP-consolidada-[28-11-2002].pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-ordinaria-1386-1993-Itaquaquecetuba-SP-consolidada-[28-11-2002] (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":"2161",
     "ano":"2002",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Lei-ordinaria-3810-2024-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Lei-ordinaria-3810-2024-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-ordinaria-3810-2024-Itaquaquecetuba-SP.pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-ordinaria-3810-2024-Itaquaquecetuba-SP (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Lei-ordinaria-3824-2024-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Lei-ordinaria-3824-2024-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-ordinaria-3824-2024-Itaquaquecetuba-SP.pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-ordinaria-3824-2024-Itaquaquecetuba-SP (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":"0",
     "ano":"3824",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência federal\/union (CF art. 153\/154)",
-      "Possível invasão de competência estadual (CF art. 155)"
+
     ]
   },
   {
-    "arquivo":"Lei-ordinaria-3893-2025-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Lei-ordinaria-3893-2025-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Lei-ordinaria-3893-2025-Itaquaquecetuba-SP.pdf",
-    "tipo":"Lei Municipal",
-    "hierarquia":4,
+    "norma":"Lei-ordinaria-3893-2025-Itaquaquecetuba-SP (5).pdf",
+    "tipo":"Documento Normativo",
+    "hierarquia":6,
     "numero":"45",
     "ano":"2000",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência federal\/union (CF art. 153\/154)"
+
     ]
   },
   {
-    "arquivo":"3 (2).pdf",
+    "arquivo":"3 (18).pdf",
     "categoria":"Direito Material",
-    "norma":"3 (2).pdf",
+    "norma":"3 (18).pdf",
     "tipo":"Documento Normativo",
     "hierarquia":6,
     "numero":"8077",
     "ano":"2022",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
     "warnings_inconstitucionalidade":[
-      "Possível invasão de competência estadual (CF art. 155)"
+
     ]
   },
   {
-    "arquivo":"Decreto-7555-2018-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Decreto-7555-2018-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Decreto-7555-2018-Itaquaquecetuba-SP.pdf",
+    "norma":"Decreto-7555-2018-Itaquaquecetuba-SP (5).pdf",
     "tipo":"Decreto Municipal",
     "hierarquia":5,
     "numero":"7555",
     "ano":"2018",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Decreto-8042-2022-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Decreto-8042-2022-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Decreto-8042-2022-Itaquaquecetuba-SP.pdf",
+    "norma":"Decreto-8042-2022-Itaquaquecetuba-SP (5).pdf",
     "tipo":"Decreto Municipal",
     "hierarquia":5,
     "numero":"8042",
     "ano":"2022",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Decreto-8432-2024-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Decreto-8432-2024-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Decreto-8432-2024-Itaquaquecetuba-SP.pdf",
+    "norma":"Decreto-8432-2024-Itaquaquecetuba-SP (5).pdf",
     "tipo":"Decreto Municipal",
     "hierarquia":5,
     "numero":"8432",
     "ano":"2024",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"Decreto-8520-2025-Itaquaquecetuba-SP.pdf",
+    "arquivo":"Decreto-8520-2025-Itaquaquecetuba-SP (5).pdf",
     "categoria":"Direito Material",
-    "norma":"Decreto-8520-2025-Itaquaquecetuba-SP.pdf",
+    "norma":"Decreto-8520-2025-Itaquaquecetuba-SP (5).pdf",
     "tipo":"Decreto Municipal",
     "hierarquia":5,
     "numero":"8520",
     "ano":"2025",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"códigodeéticadaadministraçãopública.pdf",
+    "arquivo":"códigodeéticadaadministraçãopública (5).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"códigodeéticadaadministraçãopública.pdf",
+    "norma":"códigodeéticadaadministraçãopública (5).pdf",
     "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"códigodeprocessocivil.pdf",
+    "arquivo":"códigodeprocessocivil (5).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"códigodeprocessocivil.pdf",
+    "norma":"códigodeprocessocivil (5).pdf",
     "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":"13256",
     "ano":"2016",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"direitoadministrativo.pdf",
+    "arquivo":"direitoadministrativo (5).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"direitoadministrativo.pdf",
+    "norma":"direitoadministrativo (5).pdf",
     "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"dividaativa.pdf",
+    "arquivo":"dividaativa (5).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"dividaativa.pdf",
+    "norma":"dividaativa (5).pdf",
     "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":"13043",
     "ano":"2014",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"estatutodoservidor.pdf",
+    "arquivo":"estatutodoservidor (5).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"estatutodoservidor.pdf",
+    "norma":"estatutodoservidor (5).pdf",
     "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":null,
     "ano":null,
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"leideacessoainformação.pdf",
+    "arquivo":"leideacessoainformação (5).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"leideacessoainformação.pdf",
-    "tipo":"Lei Municipal",
+    "norma":"leideacessoainformação (5).pdf",
+    "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":"14345",
     "ano":"2022",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   },
   {
-    "arquivo":"processoadministrativopúblico.pdf",
+    "arquivo":"processoadministrativopúblico (4).pdf",
     "categoria":"Parâmetro de Comportamento",
-    "norma":"processoadministrativopúblico.pdf",
+    "norma":"processoadministrativopúblico (4).pdf",
     "tipo":"Parâmetro de Comportamento",
     "hierarquia":2,
     "numero":"14210",
     "ano":"2021",
-    "revoga":null,
+    "revoga":[
+
+    ],
     "vigente":true,
-    "warnings_inconstitucionalidade":null
+    "warnings_inconstitucionalidade":[
+
+    ]
   }
 ]
