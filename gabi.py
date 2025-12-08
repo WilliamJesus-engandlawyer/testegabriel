@@ -1,5 +1,5 @@
 # gabi.py — Dr. Gabriel Bazzeggio
-# VERSÃO FINAL 100% FUNCIONAL (local + Streamlit Cloud) — Dezembro 2025
+# VERSÃO FINAL CORRIGIDA (Dezembro 2025) — Hybrid search atualizado pro LanceDB 0.23+
 import os
 from typing import List, Dict
 import streamlit as st
@@ -10,6 +10,7 @@ os.environ["LANCEDB_DISABLE_BACKGROUND"] = "1"
 
 import lancedb
 from sentence_transformers import SentenceTransformer
+from lancedb.rerankers import RRF  # Novo: pra hybrid search moderno
 
 # Groq opcional (Streamlit Cloud)
 try:
@@ -64,7 +65,7 @@ def load_groq():
     except:
         return None
 
-# ====================== BUSCA INTELIGENTE ======================
+# ====================== BUSCA INTELIGENTE (HYBRID ATUALIZADO) ======================
 def retrieve(question: str) -> List[Dict]:
     table = load_db()
     model = load_embedder()
@@ -97,10 +98,16 @@ def retrieve(question: str) -> List[Dict]:
     if boost_keywords:
         filter_str += f" AND ({' OR '.join(boost_keywords)})"
 
-    # Busca híbrida (vector + texto)
-    search = table.search(vec).metric("cosine").limit(TOP_K * 3)
-    search = search.where(filter_str, prefilter=True)
-    search = search.text(question)  # hybrid boost
+    # HYBRID SEARCH ATUALIZADO (LanceDB 0.23+): query_type="hybrid" + reranker
+    search = table.search(
+        vec, 
+        query_type="hybrid",  # Semantic + full-text automático com a query
+        metric="cosine"
+    ).limit(TOP_K * 3).where(filter_str, prefilter=True)
+
+    # Reranker simples (RRF combina scores de vector e keyword)
+    search = search.rerank(reranker=RRF())
+
     results = search.to_list()
     return results[:TOP_K]
 
@@ -127,7 +134,7 @@ def build_prompt(question: str, docs: List[Dict]) -> str:
 # ====================== UI ======================
 st.title("⚖️ Dr. Gabriel Bazzeggio")
 st.subheader("Assistente Jurídico Tributário • Prefeitura de Itaquaquecetuba")
-st.caption("RAG + neuralmind/bert-base-portuguese-cased + LanceDB + Groq • Dezembro 2025")
+st.caption("RAG + neuralmind/bert-base-portuguese-cased + LanceDB Hybrid + Groq • Dezembro 2025")
 
 client = load_groq()
 st.write("Groq API ativa (Llama 3.3 70B)" if client else "Modo local (resumo de trechos)")
