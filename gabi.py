@@ -43,15 +43,19 @@ with st.sidebar:
 
 # ====================== CARREGAMENTO ======================
 @st.cache_resource
+@st.cache_resource
 def load_db():
     try:
-        db = lancedb.connect("./lancedb")  # SEM read_mode
+        # Caminho correto relativo à posição de gabi.py
+        db_path = os.path.join(os.path.dirname(__file__), "rag", "laws")
+        db = lancedb.connect(db_path)
         table = db.open_table("laws")
         st.success(f"Base conectada: {table.to_arrow().num_rows:,} registros")
         return table
     except Exception as e:
         st.error(f"Erro ao conectar no LanceDB: {e}")
         st.stop()
+
 
 @st.cache_resource
 def load_embedder():
