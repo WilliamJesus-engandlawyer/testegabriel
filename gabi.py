@@ -1,11 +1,10 @@
-"""
+'''
 gabi.py — Dr. Gabriel Bazzeggio
 VERSÃO ATUALIZADA 100% FUNCIONAL NO STREAMLIT CLOUD (Dezembro 2025)
-"""
+'''
 
 import os
 from typing import List, Dict
-
 import streamlit as st
 
 # =========================
@@ -43,11 +42,9 @@ with st.sidebar:
 
 # ====================== CARREGAMENTO ======================
 @st.cache_resource
-@st.cache_resource
 def load_db():
     try:
-        # Caminho correto relativo à posição de gabi.py
-        db_path = os.path.join(os.path.dirname(__file__), "rag", "laws")
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag", "laws"))
         db = lancedb.connect(db_path)
         table = db.open_table("laws")
         st.success(f"Base conectada: {table.to_arrow().num_rows:,} registros")
@@ -55,7 +52,6 @@ def load_db():
     except Exception as e:
         st.error(f"Erro ao conectar no LanceDB: {e}")
         st.stop()
-
 
 @st.cache_resource
 def load_embedder():
@@ -85,11 +81,8 @@ def retrieve(question: str):
     search = table.search(vec).metric("cosine").limit(TOP_K * 2)
     if filter_str:
         search = search.where(filter_str, prefilter=True)
-    try:
-        search = search.text(question)
-    except:
-        pass
-
+    
+    search = search.text(question)   # hybrid search
     return search.to_list()[:TOP_K]
 
 # ====================== PROMPT ======================
