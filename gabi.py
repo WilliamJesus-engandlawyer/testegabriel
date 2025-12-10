@@ -44,7 +44,7 @@ def load_db():
         db_path = "./lancedb"
     db = lancedb.connect(db_path)
     try:
-        table = db.open_table("leis")  # <-- agora é "leis", não "laws"
+        table = db.open_table("laws")  # 
         st.success(f"Base conectada → {table.to_arrow().num_rows:,} chunks")
         return table
     except:
