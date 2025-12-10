@@ -48,7 +48,7 @@ def load_db():
         st.success(f"Base conectada → {table.to_arrow().num_rows:,} chunks")
         return table
     except:
-        st.error("Tabela 'leis' não encontrada. Verifique o nome do DB.")
+        st.error("Tabela 'laws' não encontrada. Verifique o nome do DB.")
         st.stop()
 
 @st.cache_resource
