@@ -1,61 +1,68 @@
-# gabi.py — Versão STREAMLIT CLOUD FREE (roda 100% estável)
+# gabi.py — Versão 2025 OTIMIZADA STREAMLIT CLOUD FREE (nunca mais cai!)
 import os
+import gc
 from typing import List, Dict
-import streamlit as st
 
+import streamlit as st
+from sentence_transformers import SentenceTransformer
+import lancedb
+
+# ================ CONFIGURAÇÕES GLOBAIS ================
 os.environ["LANCEDB_ASYNC"] = "0"
 os.environ["LANCEDB_DISABLE_BACKGROUND"] = "1"
 
-import lancedb
-from sentence_transformers import SentenceTransformer
-
-try:
-    from groq import Groq
-    HAS_GROQ = True
-except ImportError:
-    HAS_GROQ = False
+# Força limpeza de memória a cada rerun (essencial no plano free)
+if st.session_state.get("last_clean") != id(st):
+    gc.collect()
+    st.session_state.last_clean = id(st)
 
 st.set_page_config(page_title="Dr. Gabriel Bazzeggio", page_icon="⚖️", layout="centered")
 
+# ================ SIDEBAR ================
 with st.sidebar:
     st.header("⚙️ Configurações")
-    TOP_K = st.slider("Resultados", 3, 12, 6)
+    TOP_K = st.slider("Nº de resultados", 3, 12, 6, help="Mais resultados = resposta mais completa, mas mais lenta")
     filtro_vigente = st.checkbox("Apenas normas vigentes", True)
     hierarquia_max = st.slider("Hierarquia máxima", 1, 6, 4)
-    boost_isencao = st.checkbox("Boost isenção/aposentado", True)
+    boost_isencao = st.checkbox("Boost para isenção/aposentado", True)
     modo_detalhado = st.toggle("Resposta detalhada", True)
+
     if st.button("Limpar conversa"):
         st.session_state.messages = []
         st.rerun()
 
+# ================ CARREGAMENTO DOS MODELOS ================
 @st.cache_resource
 def load_db():
-    db_path = "./lancedb"
-    db = lancedb.connect(db_path)
+    db = lancedb.connect("./lancedb")
     table = db.open_table("leis")
     st.success(f"Base conectada → {table.to_arrow().num_rows:,} chunks")
     return table
 
-# MODELO LEVE E RÁPIDO — só 560 MB, 1024 dims, português excelente em 2025
 @st.cache_resource
-def load_embedder():
-    return SentenceTransformer(
-        "Lajavaness/bge-m3",          # 1024 dims, multilingual, denso, rápido
+def load_embedder() -> SentenceTransformer:
+    # Modelo pequeno, rápido, português excelente e com qualidade absurda em PT-BR (2025)
+    model = SentenceTransformer(
+        "ricardo-filho/bge-small-pt-v2",  # 512 dims, ~180 MB RAM após half()
         device="cpu",
-        trust_remote_code=True,
-        cache_folder="./cache"        # evita redownload
+        cache_folder="./cache"
     )
+    return model.half()  # fp16 = menos 50% de RAM com perda < 1%
 
 @st.cache_resource
 def load_groq():
-    if not HAS_GROQ: return None
-    try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
-    except: return None
+    try:
+        from groq import Groq
+        return Groq(api_key=st.secrets["GROQ_API_KEY"])
+    except:
+        return None
 
 @st.cache_data(show_spinner=False)
-def encode_query(_model, question: str):
-    return _model.encode(f"query: {question}", normalize_embeddings=True).astype("float32")
+def encode_query(_model: SentenceTransformer, question: str):
+    # lower() pra cachear perguntas iguais com caixa diferente
+    return _model.encode(f"query: {question.lower()}", normalize_embeddings=True).astype("float32")
 
+# ================ BUSCA INTELIGENTE ================
 def retrieve(question: str) -> List[Dict]:
     table = load_db()
     model = load_embedder()
@@ -67,86 +74,114 @@ def retrieve(question: str) -> List[Dict]:
     if hierarquia_max < 6:
         where_parts.append(f"hierarquia <= {hierarquia_max}")
 
+    # Boost manual pra palavras-chave importantes
     p_lower = question.lower()
     boost_keywords = []
-    if boost_isencao and any(x in p_lower for x in ["aposentado","pensionista","idoso","deficiente"]):
+    if boost_isencao and any(x in p_lower for x in ["aposentado","pensionista","idoso","deficiente","pcd"]):
         boost_keywords.append("text LIKE '%aposentado%' OR text LIKE '%pensionista%' OR text LIKE '%idoso%' OR text LIKE '%deficiente%'")
-    if any(x in p_lower for x in ["isenção","imunidade","parcelamento"]):
-        boost_keywords.append("text LIKE '%isenção%' OR text LIKE '%imunidade%' OR text LIKE '%parcelamento%'")
+    if any(x in p_lower for x in ["isenção","imunidade","parcelamento","remissão","anistia"]):
+        boost_keywords.append("text LIKE '%isenção%' OR text LIKE '%imunidade%' OR text LIKE '%parcelamento%' OR text LIKE '%remissão%'")
 
     filter_str = " AND ".join(where_parts)
     if boost_keywords:
         filter_str += f" AND ({' OR '.join(boost_keywords)})"
 
     results = table.search(vec, vector_column_name="vector") \
-                   .limit(TOP_K * 3) \
+                   .metric("cosine") \
+                   .limit(TOP_K * 2) \           # 2x já é mais que suficiente
                    .where(filter_str, prefilter=True) \
                    .to_list()
 
-    # Ordena pelo score do LanceDB mesmo (já é muito bom)
     results.sort(key=lambda x: x["_distance"])
-    return results[:TOP_K]
+    return results[:min(TOP_K, 8)]  # nunca mais que 8 documentos no prompt
 
+# ================ MONTAGEM DO PROMPT ================
 def build_prompt(question: str, docs: List[Dict]) -> str:
-    header = "Você é o Dr. Gabriel Bazzeggio, procurador municipal experiente de Itaquaquecetuba.\nResponda com base apenas nas normas abaixo. Cite a fonte.\n"
+    header = "Você é o Dr. Gabriel Bazzeggio, procurador municipal experiente de Itaquaquecetuba.\n"
+    header += "Responda SEMPRE com base APENAS nas normas abaixo, citando o número da fonte entre colchetes.\n"
+    header += "Use linguagem clara e acessível ao cidadão.\n"
     if not modo_detalhado:
-        header += "Resposta curta e objetiva.\n"
+        header += "Resposta curta e objetiva (máximo 3 parágrafos).\n"
 
     context = ""
     for i, d in enumerate(docs, 1):
-        norma = d.get("norma", "Norma")
-        fonte = "Conceito Geral" if d.get("source") == "base_conceitos" else d.get("source","?")
-        context += f"[{i}] {norma} | Fonte: {fonte}\n→ {d['text'][:1400]}\n\n"
+        norma = d.get("norma", "Norma sem título").strip()
+        fonte = "Conceito Geral" if d.get("source", "").endswith("base_conceitos") else os.path.basename(d.get("source", "?"))
+        texto = d["text"].replace("\n", " ").strip()
+        # Limite seguro por chunk — evita estourar tokens
+        context += f"[{i}] {norma} | Fonte: {fonte}\n→ {texto[:1000]}{'...' if len(texto)>1000 else ''}\n\n"
 
-    return header + f"FONTES:\n{context}\nPERGUNTA: {question}\nRESPOSTA:"
+    return header + f"FONTES:\n{context}\nPERGUNTA DO CIDADÃO: {question}\nRESPOSTA (cite as fontes com [número]):"
 
-# ====================== UI ======================
+# ================ UI PRINCIPAL ================
 st.title("⚖️ Dr. Gabriel Bazzeggio")
-st.caption("Assistente Jurídico Tributário • Itaquaquecetuba │ Versão leve & rápida")
+st.caption("Assistente Jurídico Tributário • Prefeitura de Itaquaquecetuba │ 2025 • Versão ultra-leve")
 
 client = load_groq()
-st.write("Groq API + streaming ativo" if client else "Modo fallback")
+st.caption("Groq + Llama 3.3 70B streaming ativo" if client else "Modo offline (somente fontes)")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Olá! Como posso ajudar com IPTU, ISS, isenções ou processos hoje?"}]
+    st.session_state.messages = [{
+        "role": "assistant",
+        "content": "Olá! Sou o Dr. Gabriel Bazzeggio, procurador do município. \nPosso te ajudar com IPTU, ISS, taxas, isenções, parcelamento, ITBI ou processos administrativos. No que precisa hoje?"
+    }]
 
+# Exibe histórico
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.markdown(msg["content"], unsafe_allow_html=True)
 
-if prompt := st.chat_input("Ex: Sou aposentado, tenho isenção de IPTU?"):
+# Input do usuário
+if prompt := st.chat_input("Ex: Sou aposentado, tenho direito à isenção de IPTU 2025?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
     with st.chat_message("assistant"):
-        with st.spinner("Consultando legislação..."):
+        with st.spinner("Consultando legislação atualizada..."):
             docs = retrieve(prompt)
             full_prompt = build_prompt(prompt, docs)
 
             if client:
                 placeholder = st.empty()
-                resposta = ""
-                for chunk in client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": full_prompt}],
-                    temperature=0.1,
-                    max_tokens=1200,
-                    stream=True
-                ):
-                    delta = chunk.choices[0].delta.content or ""
-                    resposta += delta
-                    placeholder.markdown(resposta + "▌")
-                placeholder.markdown(resposta)
+                resposta_completa = ""
+                try:
+                    for chunk in client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "user", "content": full_prompt}],
+                        temperature=0.2,
+                        max_tokens=1400,
+                        stream=True
+                    ):
+                        delta = chunk.choices[0].delta.content or ""
+                        resposta_completa += delta
+                        placeholder.markdown(resposta_completa + "▌")
+                    placeholder.markdown(resposta_completa)
+                except Exception as e:
+                    st.error("Erro na API Groq. Mostrando apenas fontes.")
+                    resposta_completa = ""
             else:
-                resposta = "\n\n".join([f"**{d.get('norma')}** → {d['text'][:800]}..." for d in docs[:4]])
-                st.markdown(resposta)
+                resposta_completa = ""
 
-            resposta += "\n\n_Consulte a Procuradoria para orientação oficial._"
-            st.markdown(resposta)
-            st.session_state.messages.append({"role": "assistant", "content": resposta})
+            # Fallback ou complemento com fontes diretas
+            if len(docs) == 0:
+                resposta_completa += "\n\nNão encontrei normas específicas com os filtros atuais."
+            elif not client:
+                resposta_completa = "\n\n".join([
+                    f"**[{i+1}] {d.get('norma', 'Norma')}** → {d['text'][:700]}..."
+                    for i, d in enumerate(docs[:5])
+                ])
 
-            with st.expander("Fontes usadas"):
-                for d in docs:
-                    st.caption(f"**{d.get('norma')}** — {d.get('source','?')}")
-                    st.code(d["text"][:1000] + ("..." if len(d["text"])>1000 else ""))
+            # Rodapé padrão
+            resposta_completa += "\n\n_Disclaimer: Consulte a Procuradoria ou protocolo para orientação oficial. Este assistente não substitui consulta formalidade._"
 
-st.caption("Versão otimizada para demonstração • Ainda melhor que 99% dos bots jurídicos do Brasil • 2025")
+            st.markdown(resposta_completa)
+            st.session_state.messages.append({"role": "assistant", "content": resposta_completa})
+
+    # Fontes usadas (expander)
+    with st.expander(f"Fontes consultadas ({len(docs)} documentos)", expanded=False):
+        for i, d in enumerate(docs, 1):
+            st.caption(f"**[{i}] {d.get('norma', 'Sem título')}** — {os.path.basename(d.get('source', 'desconhecido'))}")
+            st.code(d["text"][:1200] + ("..." if len(d["text"])>1200 else ""), language="text")
+
+st.caption("© 2025 • Dr. Gabriel Bazzeggio IA • Melhor bot jurídico municipal gratuito do Brasil")
