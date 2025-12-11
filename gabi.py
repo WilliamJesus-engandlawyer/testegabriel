@@ -74,6 +74,8 @@ def retrieve(question: str) -> List[Dict]:
     if hierarquia_max < 6:
         where_parts.append(f"hierarquia <= {hierarquia_max}")
 
+    # Corrige indentação aqui também
+
     # Boost manual pra palavras-chave importantes
     p_lower = question.lower()
     boost_keywords = []
@@ -86,14 +88,18 @@ def retrieve(question: str) -> List[Dict]:
     if boost_keywords:
         filter_str += f" AND ({' OR '.join(boost_keywords)})"
 
-    results = table.search(vec, vector_column_name="vector") \
-                   .metric("cosine") \
-                   .limit(TOP_K * 2) \           # 2x já é mais que suficiente
-                   .where(filter_str, prefilter=True) \
-                   .to_list()
+    # <<< AQUI ESTAVA O ERRO >>>
+    results = (
+        table.search(vec, vector_column_name="vector")
+        .metric("cosine")
+        .limit(TOP_K * 2)          # 2x já é mais que suficiente
+        .where(filter_str, prefilter=True)
+        .to_list()
+    )
+    # <<< FIM DA CORREÇÃO >>>
 
     results.sort(key=lambda x: x["_distance"])
-    return results[:min(TOP_K, 8)]  # nunca mais que 8 documentos no prompt
+    return results[:min(TOP_K, 8)]
 
 # ================ MONTAGEM DO PROMPT ================
 def build_prompt(question: str, docs: List[Dict]) -> str:
