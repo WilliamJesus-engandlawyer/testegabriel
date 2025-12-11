@@ -35,7 +35,7 @@ with st.sidebar:
 @st.cache_resource
 def load_db():
     db = lancedb.connect("./lancedb")
-    table = db.open_table("leis")
+    table = db.open_table("laws")
     st.success(f"Base conectada → {table.to_arrow().num_rows:,} chunks")
     return table
 
